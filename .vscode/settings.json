@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "**/*.html": "html",
+        "**/templates/**/*.html": "django-html",
+        "new": "cpp",
+        "type_traits": "cpp",
+        "cstdarg": "cpp",
+        "cstddef": "cpp",
+        "exception": "cpp",
+        "cinttypes": "cpp",
+        "cstdint": "cpp",
+        "typeinfo": "cpp"
+    }
+}
