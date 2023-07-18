@@ -82,11 +82,11 @@ namespace tinystl {
 
             /// @brief 列表初始化
             /// @param ilist  列表
-            vector(std::initializer_list<T> ilist) { range_init(ilist.begin(), ilist.end()); }
+            vector(std::initializer_list<T> ilist) { range_init(ilist.begin(), ilist.end()); };
 
             // =========================  赋值运算符  ========================= //
 
-            vector<T>& operator=(const vector<T>& rhs);
+            vector& operator=(const vector& rhs);
             vector& operator=(vector&& rhs) noexcept;  // 移动赋值不会抛出异常
             
             vector& operator=(std::initializer_list<value_type> ilist) {
@@ -216,7 +216,7 @@ namespace tinystl {
 
             void assign(std::initializer_list<value_type> ilist) {
                 copy_assign(ilist.begin(), ilist.end(), tinystl::forward_iterator_tag{});
-            }
+            };
             
             // emplace / emplace_back
             // emplace 用于在指定位置构造元素，emplace_back 用于在尾部构造元素
@@ -249,7 +249,7 @@ namespace tinystl {
             void     insert(const_iterator pos, Iter first, Iter last) {
                 TINYSTL_DEBUG(pos >= begin() && pos <= end() && !(last < first));
                 copy_insert(const_cast<iterator>(pos), first, last);  // const_cast 用于去除 const
-            }
+            };
 
             // erase / clear
             iterator erase(const_iterator pos);
@@ -293,7 +293,8 @@ namespace tinystl {
             void copy_assign(Iter first, Iter last, tinystl::forward_iterator_tag);
 
             // reallocate
-            void reallocate_emplace(iterator pos, const value_type& value);
+            template <class... Args>
+            void reallocate_emplace(iterator pos, Args&& ...args);
             void reallocate_insert(iterator pos, const value_type& value);
 
             // insert
