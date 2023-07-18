@@ -66,7 +66,7 @@ template <class InputIterator, class ForwardIteraotr>
 ForwardIteraotr uninitialized_copy(InputIterator first, InputIterator last, 
     ForwardIteraotr result) {
         // 判断是否为 POD 类型，这里使用了 std::is_trivially_copy_assignable
-        return tinystl::uninitialized_copy(first, last, result, 
+        return tinystl::__uninitialized_copy(first, last, result, 
             std::is_trivially_copy_assignable<typename iterator_traits<InputIterator>::value_type>{});
         // TInySTL 中这里判断的是 ForwardIterator 的 value_type，感觉有点问题
     }
@@ -102,7 +102,7 @@ ForwardIterator __uninitialized_copy_n(InputIterator first, Size n,
 template <class InputIterator, class Size, class ForwardIterator>
 ForwardIterator uninitialized_copy_n(InputIterator first, Size n, 
     ForwardIterator result) {
-        return tinystl::uninitialized_copy_n(first, n, result, 
+        return tinystl::__uninitialized_copy_n(first, n, result, 
             std::is_trivially_copy_assignable<typename iterator_traits<InputIterator>::value_type>{});
     }
 
@@ -137,7 +137,7 @@ void __uninitialized_fill(ForwardIterator first, ForwardIterator last,
 template <class ForwardIterator, class T>
 void uninitialized_fill(ForwardIterator first, ForwardIterator last, 
     const T& value) {
-        tinystl::uninitialized_fill(first, last, value, 
+        tinystl::__uninitialized_fill(first, last, value, 
             std::is_trivially_copy_assignable<typename iterator_traits<ForwardIterator>::value_type>{});
     }
 
@@ -172,7 +172,7 @@ ForwardIterator __uninitialized_fill_n(ForwardIterator first, Size n,
 
 template <class ForwardIterator, class Size, class T>
 ForwardIterator uninitialized_fill_n(ForwardIterator first, Size n, const T& value) {
-    return tinystl::uninitialized_fill_n(first, n, value, 
+    return tinystl::__uninitialized_fill_n(first, n, value, 
         std::is_trivially_copy_assignable<typename iterator_traits<ForwardIterator>::value_type>{});
     }
 
@@ -208,7 +208,7 @@ ForwardIterator __uninitialized_move(InputIterator first, InputIterator last,
 template <class InputIterator, class ForwardIterator>
 ForwardIterator uninitialized_move(InputIterator first, InputIterator last, 
     ForwardIterator result) {
-        return tinystl::uninitialized_move(first, last, result, 
+        return tinystl::__uninitialized_move(first, last, result, 
             std::is_trivially_move_assignable<typename iterator_traits<InputIterator>::value_type>{});
     }
 
@@ -244,7 +244,7 @@ ForwardIterator __uninitialized_move_n(InputIterator first, Size n,
 template <class InputIterator, class Size, class ForwardIterator>
 ForwardIterator uninitialized_move_n(InputIterator first, Size n, 
     ForwardIterator result) {
-        return tinystl::uninitialized_move_n(first, n, result, 
+        return tinystl::__uninitialized_move_n(first, n, result, 
             std::is_trivially_move_assignable<typename iterator_traits<InputIterator>::value_type>{});
     }
 
