@@ -6,8 +6,9 @@
 // destroy   : 负责对象的析构
 
 #include <new>          // placement new
-// #include "type_traits.h"
-// #include "iterator.h"
+#include "type_traits.h"
+#include "iterator.h"
+#include "util.h"
 
 namespace tinystl {
 
@@ -27,7 +28,7 @@ namespace tinystl {
 
     // ... 的作用是将参数包展开，详见 note2.md
     template <class Ty, class... Args>
-    void construct(Ty* ptr, Args&& ...args) {
+    void construct(Ty* ptr, Args&&... args) {
         // 带参数构造与移动构造均使用这个函数
         :: new ((void*) ptr) Ty(tinystl::forward<Args>(args)...);
     }
@@ -40,7 +41,7 @@ namespace tinystl {
 
     template <class Ty>
     // 非平凡析构，调用对象的析构函数
-    void destory_one(Ty* pointer, std::false_type) {
+    void destroy_one(Ty* pointer, std::false_type) {
         if (pointer != nullptr) {
             pointer->~Ty();
         }
@@ -54,20 +55,20 @@ namespace tinystl {
     // 非平凡析构，调用对象的析构函数
     void destroy_cat(ForwardIterator first, ForwardIterator last, std::false_type) {
         for (; first != last; ++first) {
-            tinystl::destroy(&*first);
+            destroy(&*first);
         }
     }
 
     template <class Ty>
     void destroy(Ty* pointer) {
         // 判断是否是平凡析构
-        tinystl::destroy_one(pointer, std::is_trivially_destructible<Ty>());
+        destroy_one(pointer, std::is_trivially_destructible<Ty>{});
     }
 
     template <class ForwardIterator>
-    void destory(ForwardIterator first, ForwardIterator last) {
+    void destroy(ForwardIterator first, ForwardIterator last) {
         // 通过 iterator_traits 获取迭代器的类型，然后判断是否是平凡析构
-        destory_cat(first, last, std::is_trivially_destructible<
+        destroy_cat(first, last, std::is_trivially_destructible<
         typename iterator_traits<ForwardIterator>::value_type>{});
     }
 }

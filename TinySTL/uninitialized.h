@@ -9,6 +9,10 @@
 
 #include <new>          // std::true_type, std::false_type
 #include "algobase.h"   // copy, copy_n, copy_backward 
+#include "construct.h"
+#include "iterator.h"
+#include "type_traits.h"
+#include "util.h"
 
 namespace tinystl {
 
@@ -80,7 +84,7 @@ ForwardIteraotr uninitialized_copy(InputIterator first, InputIterator last,
 template <class InputIterator, class Size, class ForwardIterator>
 ForwardIterator __uninitialized_copy_n(InputIterator first, Size n, 
     ForwardIterator result, std::true_type) {
-        return tinystl::copy_n(first, n, result);
+        return tinystl::copy_n(first, n, result).second;
     }
 
 template <class InputIterator, class Size, class ForwardIterator>
@@ -89,14 +93,15 @@ ForwardIterator __uninitialized_copy_n(InputIterator first, Size n,
         auto cur = result;
         try {
             for (; n > 0; --n, ++first, ++cur) {
-                mystl::construct(&*cur, *first);  // 移动构造
-            }
-            catch (...) {
-                for (; result != cur; ++result) {
-                    mystl::destroy(&*result);  // 析构
-                }
+                tinystl::construct(&*cur, *first);  // 移动构造
             }
         }
+        catch (...) {
+            for (; result != cur; --cur) {
+                tinystl::destroy(&*cur);  // 析构
+            }
+        }
+        return cur;
     }
 
 template <class InputIterator, class Size, class ForwardIterator>
@@ -198,9 +203,7 @@ ForwardIterator __uninitialized_move(InputIterator first, InputIterator last,
             }
         }
         catch (...) {
-            for (; result != cur; ++result) {
-                tinystl::destroy(&*result);  // 析构
-            }
+            tinystl::destroy(result, cur);  // 析构
         }
         return cur;
     }
@@ -237,6 +240,7 @@ ForwardIterator __uninitialized_move_n(InputIterator first, Size n,
             for (; result != cur; ++result) {
                 tinystl::destroy(&*result);
             }
+            throw;
         }
         return cur;
     }
@@ -248,7 +252,6 @@ ForwardIterator uninitialized_move_n(InputIterator first, Size n,
             std::is_trivially_move_assignable<typename iterator_traits<InputIterator>::value_type>{});
     }
 
-
-}
-
-#endif
+}  // namespace tinystl
+ 
+#endif  // TINYSTL_UNINITIALIZED_H_

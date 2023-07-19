@@ -12,8 +12,20 @@
 
 namespace tinystl {
 
-    struct __true_type {};
-    struct __false_type {};
+    // helper struct
+    // 定义具有 true / false 性质的对象，详见 STL源码剖析 P.104
+
+    template <class T, T v>
+    struct m_integral_constant {
+        // 可通过 value 访问具有 true / false 性质的值
+        static constexpr T value = v;
+    };
+
+    template <bool b>
+    using m_bool_constant = m_integral_constant<bool, b>;
+
+    typedef m_bool_constant<true>  m_true_type;
+    typedef m_bool_constant<false> m_false_type;
 
     
 

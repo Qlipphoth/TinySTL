@@ -3,10 +3,8 @@
 
 #include <initializer_list>  // std::initializer_list
 
-#include "allocator.h"
 #include "iterator.h"
 #include "memory.h"          // address_of 
-#include "algobase.h"        // copy_backward
 #include "util.h"          
 #include "exceptdef.h"
 #include "algo.h"
@@ -59,7 +57,9 @@ namespace tinystl {
             // =========================  构造函数  ========================= // 
             
             vector() noexcept { try_init(); }  // 不会引发异常
+            
             explicit vector(size_type n) { fill_init(n, value_type()); }  // explicit 防止隐式转换
+            
             vector(size_type n, const value_type& value) { fill_init(n, value); }
             
             // 这里使用 std::enable_if 来确保只有当迭代器类型满足输入迭代器的要求时，该函数模板才会被实例化。
@@ -322,7 +322,7 @@ namespace tinystl {
             // 如果 rhs 比当前容量小，则回收多余内存
             else if (size() >= len) {
                 auto i = tinystl::copy(rhs.begin(), rhs.end(), begin());
-                data_allocator::destory(i, end_);
+                data_allocator::destroy(i, end_);
                 end_ = begin_ + len;
             }
             // 如果 rhs 比当前容量小，但是比当前元素多，则需要重新分配内存，并复制元素
@@ -629,6 +629,7 @@ namespace tinystl {
         const auto new_size = old_size == 0 ? 
             tinystl::max(add_size, static_cast<size_type>(16)) : 
             tinystl::max(old_size + old_size / 2, old_size + add_size);
+        return new_size;
     }
 
     /// @brief 以 n 个 value 赋值 vector
@@ -728,7 +729,7 @@ namespace tinystl {
     /// @param value  元素的值
     template <class T> 
     void vector<T>::reallocate_insert(iterator pos, const value_type& value) {
-        cosnt auto new_size = get_new_cap(1);
+        const auto new_size = get_new_cap(1);
         auto new_begin = data_allocator::allocate(new_size);
         auto new_end = new_begin;
         const value_type& value_copy = value;
@@ -816,7 +817,7 @@ namespace tinystl {
             if (after_elems > n) {
                 end_ = tinystl::uninitialized_copy(end_ - n, end_, end_);
                 tinystl::move_backward(pos, old_end - n, old_end);
-                tinystl::uninitalized_copy(first, last, pos);
+                tinystl::uninitialized_copy(first, last, pos);
             }
             else {
                 auto mid = first;

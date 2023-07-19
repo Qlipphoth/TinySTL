@@ -8,13 +8,6 @@
 #include "iterator.h"
 #include "util.h"
 
-// max
-// copy
-// copy_backward
-// move
-// equal
-// lexicographical_compare
-
 namespace tinystl {
 
     #ifdef max
@@ -277,6 +270,11 @@ namespace tinystl {
         return result + n;
     }
 
+    template <class InputIterator, class OutputIterator>
+    OutputIterator move(InputIterator first, InputIterator last, 
+        OutputIterator result) {
+        return unchecked_move(first, last, result);
+    }
 
     // ========================== move_backward ========================== //
     // move_backward: 将 [first, last) 区间内的元素移动到 [result - (last - first), result) 区间内
@@ -473,17 +471,17 @@ namespace tinystl {
         while (first1 != last1 && *first1 == *first2) {
             ++first1; ++first2;
         }
-        return tinystl::make_pair(first1, first2);
+        return tinystl::pair<InputIterator1, InputIterator2>(first1, first2);
     }
 
     // 重载版本使用函数对象 comp 代替比较操作
     template <class InputIterator1, class InputIterator2, class Compare>
     tinystl::pair<InputIterator1, InputIterator2>
     mismatch(InputIterator1 first1, InputIterator1 last1, InputIterator2 first2, Compare comp) {
-        while (first1 != last1; comp(*first1, *first2)) {
+        while (first1 != last1 && comp(*first1, *first2)) {
             ++first1; ++first2;
         }
-        return tinystl::make_pair(first1, first2);
+        return tinystl::pair<InputIterator1, InputIterator2>(first1, first2);
     }
 
 }  // namespace tinystl
