@@ -15,7 +15,12 @@ struct forward_iterator_tag : public input_iterator_tag {};  // 可读写
 struct bidirectional_iterator_tag : public forward_iterator_tag {};  // 双向
 struct random_access_iterator_tag : public bidirectional_iterator_tag {};  // 随机访问
 
-// iterator 模板结构体，如果每个新设计的迭代器都继承自它，就可保证符合 STL 规范
+/// @brief iterator 模板结构体，如果每个新设计的迭代器都继承自它，就可保证符合 STL 规范
+/// @tparam Category  迭代器类型（必须提供）
+/// @tparam T         迭代器所指对象的类型（必须提供）
+/// @tparam Distance  ptrdiff_t（默认）
+/// @tparam Pointer   T*（默认）
+/// @tparam Reference T&（默认）
 template <class Category, class T, class Distance = ptrdiff_t, 
     class Pointer = T*, class Reference = T&>
 struct iterator {
