@@ -270,6 +270,13 @@ namespace tinystl {
         return result + n;
     }
 
+    /// @brief 将 [first, last) 区间内的元素移动到 [result, result + (last - first)) 区间内
+    /// @tparam InputIterator  输入迭代器
+    /// @tparam OutputIterator  输出迭代器
+    /// @param first  源区间的起始迭代器
+    /// @param last  源区间的结束迭代器
+    /// @param result  目标区间的起始迭代器
+    /// @return  返回目标区间的结束迭代器
     template <class InputIterator, class OutputIterator>
     OutputIterator move(InputIterator first, InputIterator last, 
         OutputIterator result) {

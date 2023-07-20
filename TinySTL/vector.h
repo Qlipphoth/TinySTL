@@ -26,7 +26,7 @@ namespace tinystl {
     template <class T>
     class vector {
         // 静态断言，用于在编译期间判断 T 是否为 bool 类型
-        static_assert(!std::is_same<bool, T>::value, "vector<bool> is abandoned in mystl");
+        static_assert(!std::is_same<bool, T>::value, "vector<bool> is abandoned in tinystl");
         public:
             // vector 的嵌套型别定义
             typedef tinystl::allocator<T>                         allocator_type;
@@ -129,18 +129,29 @@ namespace tinystl {
 
             // =========================  容量相关操作  ====================== //
 
-            bool empty() const noexcept { return begin_ == end_; }      // 判断是否为空
+            // 判断容器是否为空
+            bool empty() const noexcept { return begin_ == end_; }   
+
+            // 返回元素个数
             size_type size() const noexcept 
-                { return static_cast<size_type>(end_ - begin_); }       // 返回元素个数
+                { return static_cast<size_type>(end_ - begin_); }       
 
             // static_cast<size_type>(-1) 将 -1 转换为 size_type 类型，
             // 即将其转换为容器能够表示的最大无符号整数值。
+            
+            // 返回最大容量
             size_type max_size() const noexcept 
-                { return static_cast<size_type>(-1) / sizeof(T); }      // 返回最大容量
+                { return static_cast<size_type>(-1) / sizeof(T); }      
+            
+            // 返回当前可用空间的大小
             size_type capacity() const noexcept 
-                { return static_cast<size_type>(cap_ - begin_); }       // 返回当前可用空间的大小
-            void reserve(size_type n);                                  // 重新分配空间
-            void shrink_to_fit();                                       // 释放多余空间
+                { return static_cast<size_type>(cap_ - begin_); }       
+            
+            // 重新分配空间
+            void reserve(size_type n);  
+
+            // 释放多余空间                                
+            void shrink_to_fit();                                       
 
             // =========================  元素访问相关操作  ====================== //
 
@@ -195,9 +206,11 @@ namespace tinystl {
                 TINYSTL_DEBUG(!empty());
                 return *(end_ - 1);
             }
-
-            pointer data() noexcept { return begin_; }                  // 返回指向首元素的指针
-            const_pointer data() const noexcept { return begin_; }      // 返回指向首元素的常量指针
+            
+            // 返回指向首元素的指针
+            pointer data() noexcept { return begin_; }
+            // 返回指向首元素的常量指针                  
+            const_pointer data() const noexcept { return begin_; }      
 
             // =========================  修改容器相关操作  ====================== //
 
@@ -416,7 +429,7 @@ namespace tinystl {
     /// @tparam T  元素类型
     /// @param ...args  元素的构造参数
     template <class T>
-    template <class... Args>
+    template <class ...Args>
     void vector<T>::emplace_back(Args&& ...args) {
         if (end_ < cap_) {
             data_allocator::construct(tinystl::address_of(*end_), 
@@ -515,7 +528,7 @@ namespace tinystl {
         return begin_ + n;
     }
 
-    /// @brief 重置容器大小
+    /// @brief 重置容器大小，如果新的大小大于当前大小，则在尾部插入元素，否则删除尾部元素
     /// @tparam T  元素类型
     /// @param new_size  新的容器大小
     /// @param value  新增元素的值
@@ -704,12 +717,8 @@ namespace tinystl {
         auto new_begin = data_allocator::allocate(new_size);
         auto new_end = new_begin;
         try {
-            data_allocator::construct(tinystl::address_of(*new_begin), 
-                tinystl::forward<Args>(args)...);
-            new_end = new_begin + 1;
-            new_end = tinystl::uninitialized_move(begin_, pos, new_end);
-            data_allocator::construct(tinystl::address_of(*pos), 
-                tinystl::forward<Args>(args)...);
+            new_end = tinystl::uninitialized_move(begin_, pos, new_begin);
+            data_allocator::construct(tinystl::address_of(*new_end), tinystl::forward<Args>(args)...);
             ++new_end;
             new_end = tinystl::uninitialized_move(pos, end_, new_end);
         }
