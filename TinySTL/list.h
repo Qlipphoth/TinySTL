@@ -7,7 +7,7 @@
 // notes:
 //
 // 异常保证：
-// mystl::list<T> 满足基本异常保证，部分函数无异常保证，并对以下等函数做强异常安全保证：
+// TINYSTL::list<T> 满足基本异常保证，部分函数无异常保证，并对以下等函数做强异常安全保证：
 //   * emplace_front
 //   * emplace_back
 //   * emplace
@@ -53,18 +53,18 @@ struct list_node_base {
 
     /// @brief 将自身转化为 list_node<T>*
     /// @return 
-    node_ptr as_node () noexcept {
+    node_ptr as_node () {
         return static_cast<node_ptr>(self());
     }
 
     /// @brief 取消自身与链表的关联，将 prev 与 next 指向自身
-    void unlink() noexcept {
+    void unlink() {
         prev = next = self();
     }
 
     /// @brief 将自身转化为 list_node_base<T>* 
     /// @return 
-    base_ptr self() noexcept {
+    base_ptr self() {
         return static_cast<base_ptr>(&*this);
     }
 
@@ -83,13 +83,13 @@ struct list_node : public list_node_base<T> {
     
     list_node(const T& value) : data(value) {}
 
-    list_node(T&& value) : data(std::move(value)) {}
+    list_node(T&& value) : data(tinystl::move(value)) {}
 
-    base_ptr as_base() noexcept {
+    base_ptr as_base() {
         return static_cast<base_ptr>(&*this);
     }
 
-    node_ptr self() noexcept {
+    node_ptr self() {
         return static_cast<node_ptr>(&*this);
     }
 
@@ -111,8 +111,8 @@ struct list_iterator : public tinystl::iterator<tinystl::bidirectional_iterator_
     // 构造函数
     
     list_iterator() = default;
-    list_iterator(base_ptr x) noexcept : node_(x) {}
-    list_iterator(node_ptr x) noexcept : node_(x->as_base()) {}
+    list_iterator(base_ptr x) : node_(x) {}
+    list_iterator(node_ptr x) : node_(x->as_base()) {}
     list_iterator(const list_iterator& x) noexcept : node_(x.node_) {}
 
     // 重载操作符
@@ -167,11 +167,11 @@ struct list_const_iterator : public iterator<bidirectional_iterator_tag, T> {
     list_const_iterator(const list_iterator<T>& rhs) :node_(rhs.node_) {}
     list_const_iterator(const list_const_iterator& rhs) :node_(rhs.node_) {}
 
-    reference operator*()  const { return node_->as_node()->value; }
+    reference operator*()  const { return node_->as_node()->data; }
     pointer   operator->() const { return &(operator*()); }
 
     self& operator++() {
-        MYSTL_DEBUG(node_ != nullptr);
+        TINYSTL_DEBUG(node_ != nullptr);
         node_ = node_->next;
         return *this;
     }
@@ -183,7 +183,7 @@ struct list_const_iterator : public iterator<bidirectional_iterator_tag, T> {
     }
 
     self& operator--() {
-        MYSTL_DEBUG(node_ != nullptr);
+        TINYSTL_DEBUG(node_ != nullptr);
         node_ = node_->prev;
         return *this;
     }
@@ -222,8 +222,8 @@ public:
     typedef typename allocator_type::size_type        size_type;
     typedef typename allocator_type::difference_type  difference_type;
 
-    typedef list_iterator<T> iterator;
-    typedef list_iterator<const T> const_iterator;
+    typedef list_iterator<T>                          iterator;
+    typedef list_const_iterator<T>                    const_iterator;
     typedef tinystl::reverse_iterator<iterator>       reverse_iterator;
     typedef tinystl::reverse_iterator<const_iterator> const_reverse_iterator;
 
@@ -243,13 +243,13 @@ public:  // 构造、复制、移动、析构函数
 
     explicit list(size_type n) { fill_init(n, value_type()); }
 
-    list(size_type n, const value_type& value) { fill_init(n, value); }
+    list(size_type n, const T& value) { fill_init(n, value); }
     
     template <class Iter, typename std::enable_if<
         tinystl::is_input_iterator<Iter>::value, int>::type = 0>
     list(Iter first, Iter last) { copy_init(first, last); }
 
-    list(std::initializer_list<value_type> ilist) { copy_init(ilist.begin(), ilist.end()); }
+    list(std::initializer_list<T> ilist) { copy_init(ilist.begin(), ilist.end()); }
 
     list(const list& x) { copy_init(x.cbegin(), x.cend()); }
 
@@ -461,8 +461,8 @@ public: // 调整元素容器相关操作
 
     // erase / clear
 
-    iterator earse(const_iterator pos);
-    iterator earse(const_iterator first, const_iterator last);
+    iterator erase(const_iterator pos);
+    iterator erase(const_iterator first, const_iterator last);
 
     void     clear();
 
@@ -502,7 +502,7 @@ public:  // list 相关操作
     template <class Compare>
     void merge(list& x, Compare comp);
 
-    void sort() { list_sort(begin(), end(), size(), tinystl::less<T>()); }  // TODO: less
+    void sort() { list_sort(begin(), end(), size(), tinystl::less<T>()); }
 
     template <class Compare>
     void sort(Compare comp) { list_sort(begin(), end(), size(), comp); }
@@ -563,7 +563,7 @@ private:  // 辅助函数
 /// @return  返回指向被删除元素的下一个元素的迭代器
 template <class T>
 typename list<T>::iterator
-list<T>::earse(const_iterator pos) {
+list<T>::erase(const_iterator pos) {
     TINYSTL_DEBUG(pos != cend());
     auto del_node = pos.node_;
     auto next_node = del_node->next;
@@ -580,7 +580,7 @@ list<T>::earse(const_iterator pos) {
 /// @return  返回指向被删除元素的下一个元素的迭代器
 template <class T>
 typename list<T>::iterator
-list<T>::earse(const_iterator first, const_iterator last) {
+list<T>::erase(const_iterator first, const_iterator last) {
     if (first != last) {
         unlink_nodes(first.node_, last.node_->prev);
         while (first != last) {
@@ -597,7 +597,7 @@ list<T>::earse(const_iterator first, const_iterator last) {
 /// @tparam T 
 template<class T>
 void list<T>::clear() {
-    if (size != 0) {
+    if (size_ != 0) {
         auto cur = node_->next;
         for (base_ptr next = cur->next; cur != node_; cur = next, next = cur->next) {
             destroy_node(cur->as_node());
@@ -620,7 +620,7 @@ void list<T>::resize(size_type new_size, const value_type& value) {
     }
     // 跳出循环后只有两种情况
     // 1. 遍历到 new_size 个元素，此时需要删除后面的元素
-    if (len == new_size) earse(i, node_);
+    if (len == new_size) erase(i, node_);
     // 2. 遍历到 end()，此时需要在尾部插入元素
     else insert(node_, new_size - len, value);
 
@@ -694,7 +694,7 @@ void list<T>::remove_if(UnaryPredicate pred) {
     auto last = end();
     for (auto next = first; first != last; first = next) {
         ++next;
-        if (pred(*first)) earse(first);
+        if (pred(*first)) erase(first);
     }
 }
 
@@ -710,7 +710,7 @@ void list<T>::unique(BinaryPredicate pred) {
     ++j;
 
     while (j != e) {
-        if (pred(*i, *j)) earse(j);
+        if (pred(*i, *j)) erase(j);
         else { i = j; }
         j = i;
         ++j;
@@ -737,8 +737,7 @@ void list<T>::merge(list& x, Compare comp) {
         // 使 comp 为 true 的一段区间
         auto next = f2;
         ++next;
-        for (; next != l2 && comp(*next, *f1); ++next)
-          ;
+        for (; next != l2 && comp(*next, *f1); ++next);
         auto f = f2.node_;
         auto l = next.node_->prev;
         f2 = next;
@@ -768,7 +767,7 @@ void list<T>::reverse() noexcept {
     if (size_ <= 1) return;
     auto i = begin();
     auto e = end();
-    while (i.node != e.node_) {
+    while (i.node_ != e.node_) {
         tinystl::swap(i.node_->prev, i.node_->next);
         i.node_ = i.node_->prev;  // TODO: why?
     }
@@ -804,7 +803,7 @@ list<T>::create_node(Args&&... args) {
 /// @param p  指向要销毁的节点的指针
 template <class T>
 void list<T>::destroy_node(node_ptr p) {
-    data_allocator::destory(tinystl::address_of(p->data));
+    data_allocator::destroy(tinystl::address_of(p->data));
     node_allocator::deallocate(p);
 }
 
@@ -920,6 +919,221 @@ void list<T>::unlink_nodes(base_ptr first, base_ptr last) {
     first->prev->next = last->next;
     last->next->prev = first->prev;
 }
+
+/// @brief 用 n 个 value 为容器赋值
+/// @tparam T 
+/// @param n 
+/// @param value 
+template <class T>
+void list<T>::fill_assign(size_type n, const value_type& value) {
+    auto i = begin();
+    auto e = end();
+    for (; i != e && n > 0; ++i, --n) *i = value;
+    if (n > 0) insert(e, n, value);
+    else erase(i, e);
+}
+
+/// @brief 复制 [first, last) 区间内的元素为容器赋值
+/// @tparam T 
+/// @param first 
+/// @param last 
+template <class T>
+template <class Iter>
+void list<T>::copy_assign(Iter first, Iter last) {
+    auto i = begin();
+    auto e = end();
+    for (; i != e && first != last; ++i, ++first) *i = *first;
+    if (first != last) insert(e, first, last);
+    else erase(i, e);
+}
+
+/// @brief 插入 n 个 value 在 pos 之前
+/// @tparam T 
+/// @param pos 
+/// @param n 
+/// @param value 
+/// @return  返回指向新插入的最后一个元素的迭代器，若 n == 0，返回 pos
+template <class T>
+typename list<T>::iterator
+list<T>::fill_insert(const_iterator pos, size_type n, const value_type& value) {
+    iterator r(pos.node_);
+    if (n != 0) {
+        const auto add_size = n;
+        auto node = create_node(value);
+        node->prev = nullptr;
+        r = iterator(node);
+        iterator end = r;
+        try {
+            // 前面已经创建了一个节点，还需 n - 1 个
+            for (--n; n > 0; --n, ++end) {
+                auto next = create_node(value);
+                end.node_->next = next->as_base();  // link node
+                next->prev = end.node_;
+            }
+            size_ += add_size;
+        }
+        catch (...) {
+            auto enode = end.node_;
+            while (true) {
+                auto prev = enode->prev;
+                destroy_node(enode->as_node());
+                if (prev == nullptr)
+                break;
+                enode = prev;
+            }
+            throw;
+        }
+        link_nodes(pos.node_, r.node_, end.node_);
+    }
+    return r;
+}
+
+/// @brief 插入 [first, last) 区间内的元素在 pos 之前
+/// @tparam T 
+/// @param pos 
+/// @param n 
+/// @param first 
+/// @return 
+template <class T>
+template <class Iter>
+typename list<T>::iterator
+list<T>::copy_insert(const_iterator pos, size_type n, Iter first) {
+    iterator r(pos.node_);
+    if (n != 0)
+    {
+        const auto add_size = n;
+        auto node = create_node(*first);
+        node->prev = nullptr;
+        r = iterator(node);
+        iterator end = r;
+        try {
+            for (--n, ++first; n > 0; --n, ++first, ++end) {
+                auto next = create_node(*first);
+                end.node_->next = next->as_base();  // link node
+                next->prev = end.node_;
+            }
+            size_ += add_size;
+        }
+        catch (...) {
+            auto enode = end.node_;
+            while (true) {
+                auto prev = enode->prev;
+                destroy_node(enode->as_node());
+                if (prev == nullptr)
+                break;
+                enode = prev;
+            }
+            throw;
+        }
+        link_nodes(pos.node_, r.node_, end.node_);
+    }
+    return r;
+}
+
+template <class T>
+template <class Compare>
+typename list<T>::iterator
+list<T>::list_sort(iterator f1, iterator l2, size_type n, Compare comp) {
+  if (n < 2) return f1;
+  if (n == 2) {
+    if (comp(*--l2, *f1)) {
+      auto ln = l2.node_;
+      unlink_nodes(ln, ln);
+      link_nodes(f1.node_, ln, ln);
+      return l2;
+    }
+    return f1;
+  }
+
+  auto n2 = n / 2;
+  auto l1 = f1;
+  tinystl::advance(l1, n2);
+  auto result = f1 = list_sort(f1, l1, n2, comp);  // 前半段的最小位置
+  auto f2 = l1 = list_sort(l1, l2, n - n2, comp);  // 后半段的最小位置
+
+  // 把较小的一段区间移到前面
+  if (comp(*f2, *f1)) {
+    auto m = f2;
+    ++m;
+    for (; m != l2 && comp(*m, *f1); ++m);
+    auto f = f2.node_;
+    auto l = m.node_->prev;
+    result = f2;
+    l1 = f2 = m;
+    unlink_nodes(f, l);
+    m = f1;
+    ++m;
+    link_nodes(f1.node_, f, l);
+    f1 = m;
+  }
+  else ++f1;
+
+  // 合并两段有序区间
+  while (f1 != l1 && f2 != l2) {
+    if (comp(*f2, *f1)) {
+      auto m = f2;
+      ++m;
+      for (; m != l2 && comp(*m, *f1); ++m);
+      auto f = f2.node_;
+      auto l = m.node_->prev;
+      if (l1 == f2) l1 = m;
+      f2 = m;
+      unlink_nodes(f, l);
+      m = f1;
+      ++m;
+      link_nodes(f1.node_, f, l);
+      f1 = m;
+    }
+    else ++f1;
+  }
+  return result;  // TODO: 理解这部分的逻辑
+}
+
+// ==================================== 重载比较操作符 ==================================== //
+
+template <class T>
+bool operator==(const list<T>& lhs, const list<T>& rhs) {
+    auto f1 = lhs.begin();
+    auto f2 = rhs.begin();
+    auto l1 = lhs.end();
+    auto l2 = rhs.end();
+    for (; f1 != l1 && f2 != l2 && *f1 == *f2; ++f1, ++f2);
+    return f1 == l1 && f2 == l2;
+}
+
+template <class T>
+bool operator<(const list<T>& lhs, const list<T>& rhs) {
+    return tinystl::lexicographical_compare(
+        lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+}
+
+template <class T>
+bool operator!=(const list<T>& lhs, const list<T>& rhs) {
+    return !(lhs == rhs);
+}
+
+template <class T>
+bool operator>(const list<T>& lhs, const list<T>& rhs) {
+    return rhs < lhs;
+}
+
+template <class T>
+bool operator<=(const list<T>& lhs, const list<T>& rhs) {
+    return !(rhs < lhs);
+}
+
+template <class T>
+bool operator>=(const list<T>& lhs, const list<T>& rhs) {
+    return !(lhs < rhs);
+}
+
+// ==================================== 重载 swap ==================================== //
+
+template <class T>
+void swap(list<T>& lhs, list<T>& rhs) noexcept {
+    lhs.swap(rhs);
+}
+
 
 }  // namespace tinystl
 
