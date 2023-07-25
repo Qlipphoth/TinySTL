@@ -7,7 +7,7 @@
 // notes:
 //
 // 异常保证：
-// mystl::deque<T> 满足基本异常保证，部分函数无异常保证，并对以下等函数做强异常安全保证：
+// tinystl::deque<T> 满足基本异常保证，部分函数无异常保证，并对以下等函数做强异常安全保证：
 //   * emplace_front
 //   * emplace_back
 //   * emplace
@@ -129,7 +129,7 @@ struct deque_iterator : public iterator<random_access_iterator_tag, T> {
     reference operator*() const noexcept { return *cur; }
     pointer operator->() const noexcept { return cur; }
 
-    difference_type operator-(const self& x) {
+    difference_type operator-(const self& x) const {
         return static_cast<difference_type>(buffer_size) * (node - x.node - 1) + 
             (cur - first) + (x.last - x.cur);
     }
@@ -401,7 +401,7 @@ public:  // 修改容器相关操作
 
     iterator insert(iterator pos, const value_type& value);
     iterator insert(iterator pos, value_type&& value);
-    iterator insert(iterator pos, size_type n, const value_type& value);
+    void insert(iterator pos, size_type n, const value_type& value);
     
     template <class InputIterator, typename std::enable_if<
         tinystl::is_input_iterator<InputIterator>::value, int>::type = 0>
@@ -475,14 +475,15 @@ deque<T>& deque<T>::operator=(const deque& rhs) {
     if (this != &rhs) {
         const auto len = size();
         if (len >= rhs.size()) {
-            erase(tinystl::copy(rhs.start_, rhs.finish_, start_), end_);
+            erase(tinystl::copy(rhs.start_, rhs.finish_, start_), finish_);
         }
         else {
             iterator mid = rhs.begin() + static_cast<difference_type>(len);
             tinystl::copy(rhs.start_, mid, start_);
-            insert(end_, mid, rhs.finish_);
+            insert(finish_, mid, rhs.finish_);
         }
     }
+    return *this;
 }
 
 /// @brief 移动赋值运算符
@@ -618,18 +619,18 @@ void deque<T>::pop_back() {
 /// @brief 在 pos 处插入元素
 template <class T>
 typename deque<T>::iterator deque<T>::insert(iterator pos, const value_type& value) {
-    emplace(pos, value);
+    return emplace(pos, value);
 }
 
 /// @brief 在 pos 处插入元素
 template <class T>
 typename deque<T>::iterator deque<T>::insert(iterator pos, value_type&& value) {
-    emplace(pos, tinystl::move(value));
+    return emplace(pos, tinystl::move(value));
 }
 
 /// @brief 在 pos 处插入 n 个元素
 template <class T>
-typename deque<T>::iterator deque<T>::insert(iterator pos, size_type n, const value_type& value) {
+void deque<T>::insert(iterator pos, size_type n, const value_type& value) {
     if (pos.cur == start_.cur) {
         require_capacity(n, true);
         auto new_start = start_ - static_cast<difference_type>(n);
@@ -680,7 +681,7 @@ typename deque<T>::iterator deque<T>::erase(iterator first, iterator last) {
             tinystl::copy_backward(start_, first, last);
             auto new_start = start_ + n;
             data_allocator::destroy(start_.cur, new_start.cur);
-            destroy_buffer(start_.node, new_start.node - 1);
+            // destroy_buffer(start_.node, new_start.node - 1);
             start_ = new_start;
         }
         // 否则从后面开始移动
@@ -688,7 +689,7 @@ typename deque<T>::iterator deque<T>::erase(iterator first, iterator last) {
             tinystl::copy(last, finish_, first);
             auto new_finish = finish_ - n;
             data_allocator::destroy(new_finish.cur, finish_.cur);
-            destroy_buffer(new_finish.node + 1, finish_.node);
+            // destroy_buffer(new_finish.node + 1, finish_.node);
             finish_ = new_finish;
         }
         return start_ + elems_before;
@@ -917,6 +918,7 @@ typename deque<T>::iterator deque<T>::insert_aux(iterator pos, Args&& ...args) {
     return pos;
 }
 
+/// @brief 在 pos 处插入 n 个元素
 template <class T>
 void deque<T>::fill_insert(iterator pos, size_type n, const value_type& value) {
     const auto elem_before = pos - start_;
@@ -947,32 +949,279 @@ void deque<T>::fill_insert(iterator pos, size_type n, const value_type& value) {
             }
         }
         catch (...) {
-            destroy_buffer(new_start.node, new_start.node);
+            if (new_start.node != start_.node) destroy_buffer(new_start.node, start_.node - 1);
             throw;
         }
 
     }
-    // TODO:
+    else {
+        require_capacity(n, false);
 
+        auto old_finish = finish_;  // 原始的 finish_ 的位置
+        auto new_finish = finish_ + static_cast<difference_type>(n);  // 插入新元素后的 finish_ 的位置
+        const auto elem_after = len - elem_before;  // pos 之后的元素的个数
+        pos = finish_ - elem_after;  // 要插入新元素在 pos 之前
+
+        try {
+            if (elem_after > n) {
+                auto finish_n = finish_ - static_cast<difference_type>(n);
+                tinystl::uninitialized_copy(finish_n, finish_, finish_);  // 复制后半部分
+                finish_ = new_finish;
+                tinystl::copy_backward(pos, finish_n, old_finish);  // 复制前半部分
+                tinystl::fill(pos, pos + static_cast<difference_type>(n), value_copy);  // 填充新元素
+            }
+            else {
+                tinystl::uninitialized_fill(finish_, pos + static_cast<difference_type>(n), value_copy);  // 填充后半部分新元素
+                tinystl::uninitialized_copy(pos, finish_, pos + static_cast<difference_type>(n));  // 复制所有 pos 之后的元素
+                finish_ = new_finish;
+                tinystl::fill(pos, old_finish, value_copy);  // 填充剩余的新元素
+            }
+        }
+        catch (...) {
+            if (new_finish.node != finish_.node) destroy_buffer(finish_.node + 1, new_finish.node);
+            throw;
+        }
+    }
 }
 
+/// @brief 在 pos 处插入 [first, last) 区间的元素
+template <class T>
+template <class ForwardIterator>
+void deque<T>::copy_insert(iterator pos, ForwardIterator first, ForwardIterator last, size_type n) {
+    const auto elem_before = pos - start_;
+    const auto len = size();
 
+    if (elem_before < (len >> 1)) {
+        require_capacity(n, true);
 
+        auto old_start = start_;  // 原始的 start_ 的位置
+        auto new_start = start_ - static_cast<difference_type>(n);  // 插入新元素后的 start_ 的位置
+        pos = start_ + elem_before;  // 要插入新元素在 pos 之前
 
+        try {
+            // 要填充的元素的个数小于 pos 之前的元素的个数
+            if (elem_before >= n) {
+                auto start_n = start_ + static_cast<difference_type>(n);
+                tinystl::uninitialized_copy(start_, start_n, new_start);  // 复制前半部分
+                start_ = new_start;
+                tinystl::copy(start_n, pos, old_start);  // 复制后半部分
+                tinystl::copy(first, last, pos - static_cast<difference_type>(n));  // 填充新元素
+            }
+            else {
+                auto mid = first;
+                tinystl::advance(mid, n - elem_before);
+                tinystl::uninitialized_copy(first, mid, 
+                    tinystl::uninitialized_copy(start_, pos, new_start));  // 复制所有 pos 之前的元素
+                start_ = new_start;
+                tinystl::copy(mid, last, old_start);  // 复制剩余的元素
+            }
+        }
+        catch (...) {
+            if (new_start.node != start_.node) destroy_buffer(new_start.node, start_.node - 1);
+            throw;
+        }
 
+    }
+    else {
+        require_capacity(n, false);
 
+        auto old_finish = finish_;  // 原始的 finish_ 的位置
+        auto new_finish = finish_ + static_cast<difference_type>(n);  // 插入新元素后的 finish_ 的位置
+        const auto elem_after = len - elem_before;  // pos 之后的元素的个数
+        pos = finish_ - elem_after;  // 要插入新元素在 pos 之前
 
+        try {
+            if (elem_after > n) {
+                auto finish_n = finish_ - static_cast<difference_type>(n);
+                tinystl::uninitialized_copy(finish_n, finish_, finish_);  // 复制后半部分
+                finish_ = new_finish;
+                tinystl::copy_backward(pos, finish_n, old_finish);  // 复制前半部分
+                tinystl::copy(first, last, pos);  // 填充新元素
+            }
+            else {
+                auto mid = first;
+                tinystl::advance(mid, elem_after);
+                tinystl::uninitialized_copy(mid, last, 
+                    tinystl::uninitialized_copy(pos, finish_, finish_ + static_cast<difference_type>(n)));  // 复制所有 pos 之后的元素
+                finish_ = new_finish;
+                tinystl::copy(first, mid, pos);  // 填充剩余的新元素
+            }
+        }
+        catch (...) {
+            if (new_finish.node != finish_.node) destroy_buffer(finish_.node + 1, new_finish.node);
+            throw;
+        }
+    }
+}
 
+/// @brief insert 的 InputIterator 版本
+template <class T>
+template <class InputIterator>
+void deque<T>::insert_dispatch(iterator pos, InputIterator first, InputIterator last, 
+    tinystl::input_iterator_tag) {
+    if (last <= first) return;
+    const auto n = tinystl::distance(first, last);
+    const auto elem_before = pos - start_;
+    if (elem_before < (size() >> 1)) {
+        require_capacity(n, true);
+    }
+    else {
+        require_capacity(n, false);
+    }
+    pos = start_ + elem_before;
+    auto cur = --last;
+    for (size_type i = 0; i < n; ++i, --cur) {
+        insert(pos, *cur);
+    }
+} 
 
+/// @brief insert 的 ForwardIterator 版本
+template <class T>
+template <class ForwardIterator>
+void deque<T>::insert_dispatch(iterator pos, ForwardIterator first, ForwardIterator last, 
+    tinystl::forward_iterator_tag) {
+    if (last <= first) return;
+    const auto n = tinystl::distance(first, last);
+    if (pos.cur == start_.cur) {
+        require_capacity(n, true);
+        auto new_start = start_ - static_cast<difference_type>(n);
+        try {
+            tinystl::uninitialized_copy(first, last, new_start);
+            start_ = new_start;
+        }
+        catch (...) {
+            if (new_start.node != start_.node) destroy_buffer(new_start.node, start_.node - 1);
+            throw;
+        }
+    }
+    else if (pos.cur == finish_.cur) {
+        require_capacity(n, false);
+        auto new_finish = finish_ + static_cast<difference_type>(n);
+        try {
+            tinystl::uninitialized_copy(first, last, finish_);
+            finish_ = new_finish;
+        }
+        catch (...) {
+            if (new_finish.node != finish_.node) destroy_buffer(finish_.node + 1, new_finish.node);
+            throw;
+        }
+    }
+    else {
+        copy_insert(pos, first, last, n);
+    }
+}
 
+/// @brief 分配管控中心容量
+template <class T>
+void deque<T>::require_capacity(size_type n, bool front) {
+    if (front && (static_cast<size_type>(start_.cur - start_.first) < n)) {
+        const size_type need_buffer = (n - (start_.cur - start_.first)) / buffer_size + 1;  // 需要的缓冲区个数
+        // 如果需要的缓冲区个数大于当前的缓冲区个数，就重新分配
+        if (need_buffer > static_cast<size_type>(start_.node - map_)) {
+            reallocate_map_at_front(need_buffer);
+            return;
+        }
+        // 否则只需创建缓冲区
+        create_buffer(start_.node - need_buffer, start_.node - 1);
+    }
+    else if (!front && (static_cast<size_type>(finish_.last - finish_.cur - 1) < n)) {
+        const size_type need_buffer = (n - (finish_.last - finish_.cur - 1)) / buffer_size + 1;  // 需要的缓冲区个数
+        // 如果需要的缓冲区个数大于当前的缓冲区个数，就重新分配
+        if (need_buffer > static_cast<size_type>((map_ + map_size_) - finish_.node - 1)) {
+            reallocate_map_at_back(need_buffer);
+            return;
+        }
+        // 否则只需创建缓冲区
+        create_buffer(finish_.node + 1, finish_.node + need_buffer);
+    }
+}
 
+template <class T>
+void deque<T>::reallocate_map_at_front(size_type need_buffer) {
+    const size_type new_map_size = tinystl::max(map_size_ << 1, map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE);
+    map_pointer new_map = create_map(new_map_size);
+    
+    const size_type old_buffer = finish_.node - start_.node + 1;
+    const size_type new_buffer = old_buffer + need_buffer;
 
+    auto start = new_map + (new_map_size - new_buffer) / 2;  // 新的 start_ 的位置
+    auto mid   = start + need_buffer;  
+    auto finish = mid + old_buffer;
 
+    create_buffer(start, mid - 1);
 
+    for (auto cur = mid, old_cur = start_.node; cur != finish; ++cur, ++old_cur) *cur = *old_cur;
 
+    map_allocator::deallocate(map_, map_size_);
+    map_ = new_map;
+    map_size_ = new_map_size;
+    start_ = iterator(*mid + (start_.cur - start_.first), mid);
+    finish_ = iterator(*(finish - 1) + (finish_.cur - finish_.first), finish - 1);
+}
 
+template <class T>
+void deque<T>::reallocate_map_at_back(size_type need_buffer) {
+    const size_type new_map_size = tinystl::max(map_size_ << 1, map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE);
+    map_pointer new_map = create_map(new_map_size);
+    
+    const size_type old_buffer = finish_.node - start_.node + 1;
+    const size_type new_buffer = old_buffer + need_buffer;
 
+    auto start  = new_map + ((new_map_size - new_buffer) / 2);  // 新的 start_ 的位置
+    auto mid    = start + old_buffer;  
+    auto finish = mid + need_buffer;
 
+    for (auto cur = start, old_cur = start_.node; cur != mid; ++cur, ++old_cur) *cur = *old_cur;
+    create_buffer(mid, finish - 1);
+
+    map_allocator::deallocate(map_, map_size_);
+    map_ = new_map;
+    map_size_ = new_map_size;
+    start_ = iterator(*start + (start_.cur - start_.first), start);
+    finish_ = iterator(*(mid - 1) + (finish_.cur - finish_.first), mid - 1);
+}
+
+// TODO: 这两个函数的意思
+
+// =================================== 重载比较运算符 =================================== //
+
+template <class T>
+bool operator==(const deque<T>& lhs, const deque<T>& rhs) {
+    return lhs.size() == rhs.size() && 
+    tinystl::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
+template <class T>
+bool operator<(const deque<T>& lhs, const deque<T>& rhs) {
+    return tinystl::lexicographical_compare(
+    lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+}
+
+template <class T>
+bool operator!=(const deque<T>& lhs, const deque<T>& rhs) {
+  return !(lhs == rhs);
+}
+
+template <class T>
+bool operator>(const deque<T>& lhs, const deque<T>& rhs) {
+  return rhs < lhs;
+}
+
+template <class T>
+bool operator<=(const deque<T>& lhs, const deque<T>& rhs) {
+  return !(rhs < lhs);
+}
+
+template <class T>
+bool operator>=(const deque<T>& lhs, const deque<T>& rhs) {
+  return !(lhs < rhs);
+}
+
+// 重载 tinystl 的 swap
+template <class T>
+void swap(deque<T>& lhs, deque<T>& rhs) {
+  lhs.swap(rhs);
+}
 
 }   // namespace tinystl
 
