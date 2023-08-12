@@ -11,6 +11,7 @@
 #include "vector_test.h"
 #include "list_test.h"
 #include "deque_test.h"
+#include "stack_test.h"
 
 int main()
 {
@@ -22,10 +23,10 @@ int main()
   // algorithm_performance_test::algorithm_performance_test();
   // vector_test::vector_test();
   // list_test::list_test();
-  deque_test::deque_test();
+  // deque_test::deque_test();
   // queue_test::queue_test();
   // queue_test::priority_test();
-  // stack_test::stack_test();
+  stack_test::stack_test();
   // map_test::map_test();
   // map_test::multimap_test();
   // set_test::set_test();
