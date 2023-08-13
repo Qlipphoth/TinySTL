@@ -31,9 +31,9 @@
 
    在该结构体内部，定义了一个私有的嵌套结构体 `two`，它包含两个 `char` 类型的成员变量。然后，定义了两个重载的 `test` 函数模板，一个接受任意类型 `U` 的参数（使用可变参数模板），另一个接受参数类型为 `typename U::iterator_category*` 的参数。
 
-   在 `test` 函数模板的实现中，第一个重载的函数使用 `...` 接受任意类型的参数，并返回 `two` 类型。第二个重载的函数使用了 **SFINAE** 技术，它接受一个指向 `U::iterator_category` 类型的指针参数，并返回 `char` 类型。这意味着，当类型 `T` 存在名为 `iterator_category` 的内部类型时，第二个重载的函数会匹配，返回 `char` 类型；否则，第一个重载的函数会匹配，返回 `two` 类型。
+   在 `test` 函数模板的实现中，第一个重载的函数使用 `...` 接受任意类型的参数，并返回 `two` 类型。第二个重载的函数使用了 **SFINAE** 技术，它接受一个指向 `U::iterator_category` 类型的指针参数，并返回 `char` 类型。这意味着，**当类型 `T` 存在名为 `iterator_category` 的内部类型时，第二个重载的函数会匹配，返回 `char` 类型；否则，第一个重载的函数会匹配，返回 `two` 类型。**
 
-   最后，在 `has_iterator_cat` 结构体中定义了一个静态常量 `value`，它通过比较 `sizeof(test<T>(0))` 和 `sizeof(char)` 的大小来确定 `T` 是否具有 `iterator_category` 内部类型。如果两者的大小相等，则表示 `T` 具有 `iterator_category`，`value` 被设为 `true`；否则，表示 `T` 不具有 `iterator_category`，`value` 被设为 `false`。
+   最后，在 `has_iterator_cat` 结构体中定义了一个静态常量 `value`，它通过比较 `sizeof(test<T>(0))` 和 `sizeof(char)` 的大小来确定 `T` 是否具有 `iterator_category` 内部类型。**如果两者的大小相等，则表示 `T` 具有 `iterator_category`，`value` 被设为 `true`；否则，表示 `T` 不具有 `iterator_category`，`value` 被设为 `false`。**
 
    通过使用 `has_iterator_cat` 结构体和其静态常量 `value`，可以在编译时检查类型 `T` 是否具有 `iterator_category` 内部类型。
 
@@ -50,5 +50,4 @@
    在上述代码中，SFINAE 技术被用于通过函数重载和模板特化来选择不同的 `test` 函数模板实例。当传递的类型 `T` 具有 `iterator_category` 内部类型时，第二个重载的函数将匹配，否则将匹配第一个重载的函数。通过这种方式，可以在编译时检测类型 `T` 是否具有特定的内部类型，并执行相应的操作。
 
    
-
 

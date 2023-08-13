@@ -35,7 +35,7 @@ struct iterator {
 
 // =========================================== traits =========================================== //
 // 这部分的实现太精彩了
-// 用于判断某个类型是否为迭代器类型，见 iterator 部分的笔记
+// 用于判断某个类型是否为迭代器类型，见 iterator 部分的笔记: Note1-SFINAE技巧
 
 template <class T>
 struct has_iterator_cat {
@@ -53,13 +53,12 @@ struct iterator_traits_impl {};
 // `iterator_traits`结构体就是使用`typename`对参数类型的提取(萃取), 
 // 并且对参数类型在进行一次命名, 看上去对参数类型的使用有了一层间接性.
 template <class Iterator>
-struct iterator_traits_impl<Iterator, true>
-{
-  typedef typename Iterator::iterator_category iterator_category;
-  typedef typename Iterator::value_type        value_type;
-  typedef typename Iterator::pointer           pointer;
-  typedef typename Iterator::reference         reference;
-  typedef typename Iterator::difference_type   difference_type;
+struct iterator_traits_impl<Iterator, true> {
+    typedef typename Iterator::iterator_category iterator_category;
+    typedef typename Iterator::value_type        value_type;
+    typedef typename Iterator::pointer           pointer;
+    typedef typename Iterator::reference         reference;
+    typedef typename Iterator::difference_type   difference_type;
 };
 
 template <class Iterator, bool>
@@ -68,9 +67,9 @@ struct iterator_traits_helper {};
 // 判断某个类型的迭代器是否可以转换为输入迭代器或输出迭代器
 template <class Iterator>
 struct iterator_traits_helper<Iterator, true>
-  : public iterator_traits_impl<Iterator,
-  std::is_convertible<typename Iterator::iterator_category, input_iterator_tag>::value ||
-  std::is_convertible<typename Iterator::iterator_category, output_iterator_tag>::value> {};
+    : public iterator_traits_impl<Iterator,
+    std::is_convertible<typename Iterator::iterator_category, input_iterator_tag>::value ||
+    std::is_convertible<typename Iterator::iterator_category, output_iterator_tag>::value> {};
 
 
 // 萃取迭代器的特性
