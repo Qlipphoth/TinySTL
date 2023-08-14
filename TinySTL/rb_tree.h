@@ -235,7 +235,7 @@ struct rb_tree_iterator : public rb_tree_iterator_base<T> {
     typedef rb_tree_const_iterator<T>        const_iterator;
     typedef iterator                         self;
 
-    using rb_tree_iterator_base<T>::node = node;  // TODO: 试试这样行不行
+    using rb_tree_iterator_base<T>::node;
 
     // 构造函数
     rb_tree_iterator() {}
@@ -775,7 +775,444 @@ public:  // 元素相关操作
         insert_unique(end(), *first);
     }
 
+    // ====================== erase ====================== //
+
+    iterator  erase(iterator hint);
+
+    size_type erase_multi(const key_type& key);
+    size_type erase_unique(const key_type& key);
+
+    void erase(iterator first, iterator last);
+
+    void clear();
+
+public:  // 查找相关操作
+    iterator              find(const key_type& key);
+    const_iterator        find(const key_type& key) const;
+
+    size_type             count_multi(const key_type& key) const {
+        auto p = equal_range_multi(key);
+        return static_cast<size_type>(tinystl::distance(p.first, p.second));
+    }
+
+    size_type             count_unique(const key_type& key) const {
+        return find(key) == end() ? 0 : 1;
+    }
+
+    iterator              lower_bound(const key_type& key);
+    const_iterator        lower_bound(const key_type& key) const;
+
+    iterator              upper_bound(const key_type& key);
+    const_iterator        upper_bound(const key_type& key) const;
+
+    tinystl::pair<iterator, iterator>
+    equal_range_multi(const key_type& key) {
+        return tinystl::pair<iterator, iterator>(lower_bound(key), upper_bound(key));
+    }
+
+    tinystl::pair<const_iterator, const_iterator>
+    equal_range_multi(const key_type& key) const {
+        return tinystl::pair<const_iterator, const_iterator>(lower_bound(key), upper_bound(key));
+    }
+
+    tinystl::pair<iterator, iterator>
+    equal_range_unique(const key_type& key) {
+        iterator it = find(key);
+        auto next = it;
+        return it == end() ? tinystl::make_pair(it, it) : tinystl::make_pair(it, ++next);
+    }
+
+    tinystl::pair<const_iterator, const_iterator>
+    equal_range_unique(const key_type& key) const {
+        const_iterator it = find(key);
+        auto next = it;
+        return it == end() ? tinystl::make_pair(it, it) : tinystl::make_pair(it, ++next);
+    }
+
+    void swap(rb_tree& rhs) noexcept;
+
+private:  // 辅助函数
+    
+    // node related
+    template <class ...Args>
+    node_ptr create_node(Args&& ...args);
+    node_ptr clone_node(base_ptr x);
+    void     destroy_node(node_ptr x);
+
+    // init / reset
+    void     rb_tree_init();
+    void     reset();
+
+    // get_insert_pos
+    tinystl::pair<base_ptr, bool> get_insert_multi_pos(const key_type& key);
+    tinystl::pair<tinystl::pair<base_ptr, bool>, bool> get_insert_unique_pos(const key_type& key);
+
+    // insert
+    iterator insert_value_at(base_ptr x, const value_type& value, bool add_to_left);
+    iterator insert_node_at(base_ptr x, node_ptr node, bool add_to_left);
+
+    // insert use hint
+    iterator insert_multi_use_hint(base_ptr hint, key_type key, node_ptr node);
+    iterator insert_unique_use_hint(base_ptr hint, key_type key, node_ptr node);
+
+    // copy / erase
+    base_ptr copy_from(base_ptr x, base_ptr p);
+    void     erase_since(base_ptr x);
 };
+
+
+// ============================================ 函数实现 ================================================ //
+
+/// @brief 复制构造函数
+template <class T, class Compare>
+rb_tree<T, Compare>::rb_tree(const rb_tree& rhs) {
+    rb_tree_init();
+    if (rhs.node_count_ != 0) {
+        root() = copy_from(rhs.root(), header_);
+        leftmost() = rb_tree_min(root());
+        rightmost() = rb_tree_max(root());
+    }
+    node_count_ = rhs.node_count_;
+    key_comp_ = rhs.key_comp_;
+}
+
+/// @brief 移动构造函数
+template <class T, class Compare>
+rb_tree<T, Compare>::rb_tree(rb_tree&& rhs) noexcept 
+    : header_(tinystl::move(rhs.header_)), 
+    node_count_(rhs.node_count_), 
+    key_comp_(rhs.key_comp_) {
+    rhs.reset();
+} 
+
+/// @brief 复制赋值运算符
+template <class T, class Compare>
+rb_tree<T, Compare>& rb_tree<T, Compare>::operator=(const rb_tree& rhs) {
+    if (this != &rhs) {
+        clear();
+        if (rhs.node_count_ != 0) {
+            root() = copy_from(rhs.root(), header_);
+            leftmost() = rb_tree_min(root());
+            rightmost() = rb_tree_max(root());
+        }
+        node_count_ = rhs.node_count_;
+        key_comp_ = rhs.key_comp_;
+    }
+    return *this;
+}
+
+/// @brief 移动赋值运算符
+template <class T, class Compare>
+rb_tree<T, Compare>& rb_tree<T, Compare>::operator=(rb_tree&& rhs) noexcept {
+    clear();
+    header_ = tinystl::move(rhs.header_);
+    node_count_ = rhs.node_count_;
+    key_comp_ = rhs.key_comp_;
+    rhs.reset();
+    return *this;
+}
+
+/// @brief 就地插入元素，键值允许重复
+template <class T, class Compare>
+template <class ...Args>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::emplace_multi(Args&& ...args) {
+    THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Compare>'s size too big");
+    node_ptr node = create_node(tinystl::forward<Args>(args)...);
+    auto res = get_insert_multi_pos(value_traits::get_key(node->value));
+    return insert_node_at(res.first, node, res.second);
+}
+
+/// @brief 就地插入元素，键值不允许重复
+/// @return 返回一个 pair，其中 first 为插入位置，second 表示是否插入成功
+template <class T, class Compare>
+template <class ...Args>
+tinystl::pair<typename rb_tree<T, Compare>::iterator, bool>
+rb_tree<T, Compare>::emplace_unique(Args&& ...args) {
+    THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Compare>'s size too big");
+    node_ptr node = create_node(tinystl::forward<Args>(args)...);
+    auto res = get_insert_unique_pos(value_traits::get_key(node->value));
+    // 插入成功
+    if (res.second) {
+        return tinystl::make_pair(insert_node_at(res.first.first, node, res.first.second), true);
+    }
+    destroy_node(node);
+    return tinystl::make_pair(iterator(res.first.first), false);
+}
+
+/// @brief 就地插入元素，键值允许重复，当 hint 位置与插入位置接近时，插入操作的时间复杂度可以降低
+template <class T, class Compare>
+template <class ...Args>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::emplace_multi_use_hint(iterator hint, Args&& ...args) {
+    THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Compare>'s size too big");
+    node_ptr node = create_node(tinystl::forward<Args>(args)...);
+    key_type key  = value_traits::get_key(node->value);
+
+    if (node_count_ == 0) {
+        return insert_node_at(header_, node, true);
+    }
+
+    if (hint == begin()) {
+        if (key_comp_(key, value_traits::get_key(*hint))) {
+            return insert_node_at(hint.node, node, true);
+        }
+        else {
+            auto res = get_insert_multi_pos(key);
+            return insert_node_at(res.first, node, res.second);  // TODO: why?
+        }
+    }
+    else if (hint == end()) {
+        if (!key_comp_(key, value_traits::get_key(rightmost()->get_node_ptr()->value))) {
+            return insert_node_at(rightmost(), node, false);
+        }
+        else {
+            auto pos = get_insert_multi_pos(key);
+            return insert_node_at(pos.first, node, pos.second);
+        }
+    }
+    return insert_multi_use_hint(hint, key, node);
+}
+
+/// @brief 就地插入元素，键值不允许重复，当 hint 位置与插入位置接近时，插入操作的时间复杂度可以降低
+template<class T, class Compare>
+template<class ...Args>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::emplace_unique_use_hint(iterator hint, Args&& ...args) {
+    THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Compare>'s size too big");
+    node_ptr node = create_node(tinystl::forward<Args>(args)...);
+    key_type key  = value_traits::get_key(node->value);
+
+    if (node_count_ == 0) {
+        return insert_node_at(header_, node, true);
+    }
+    if (hint == begin()) {
+        if (key_comp_(key, value_traits::get_key(*hint))) {
+            return insert_node_at(hint.node, node, true);
+        }
+        else {
+            auto res = get_insert_unique_pos(key);
+            if (!res.second) {
+                destroy_node(node);
+                return res.first.first;
+            }
+            return insert_node_at(res.first.first, node, res.first.second);
+        }
+    }
+    else if (hint == end()) {
+        if (key_comp_(value_traits::get_key(rightmost()->get_node_ptr()->value), key)) {
+            return insert_node_at(rightmost(), node, false);
+        }
+        else {
+            auto res = get_insert_unique_pos(key);
+            if (!res.second) {
+                destroy_node(node);
+                return res.first.first;
+            }
+            return insert_node_at(res.first.first, node, res.first.second);
+        }
+    }
+    return insert_unique_use_hint(hint, key, node);
+}
+
+/// @brief 插入元素，节点键值允许重复
+template <class T, class Compare>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::insert_multi(const value_type& value) {
+    THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Compare>'s size too big");
+    auto res = get_insert_multi_pos(value_traits::get_key(value));
+    return insert_value_at(res.first, value, res.second);
+}
+
+/// @brief 插入元素，节点键值不允许重复，返回一个 pair，若插入成功，pair 的第二参数为 true，否则为 false
+template <class T, class Compare>
+tinystl::pair<typename rb_tree<T, Compare>::iterator, bool>
+rb_tree<T, Compare>::insert_unique(const value_type& value) {
+    THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Compare>'s size too big");
+    auto res = get_insert_unique_pos(value_traits::get_key(value));
+    // 插入成功
+    if (res.second) {
+        return tinystl::make_pair(insert_value_at(res.first.first, value, res.first.second), true);
+    }
+    return tinystl::make_pair(res.first.first, false);
+}
+
+/// @brief 删除 hint 位置的节点
+/// @return 返回删除节点的后继节点
+template <class T, class Compare>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::erase(iterator hint) {
+    auto node = hint.node->get_node_ptr();
+    iterator next(node);
+    ++next;
+    // 重新平衡
+    rb_tree_erase_rebalance(hint.node, root(), leftmost(), rightmost());
+    destroy_node(node);
+    --node_count_;
+    return next;
+}
+
+/// @brief 删除键值等于 key 的元素，返回删除的个数
+template <class T, class Compare>
+typename rb_tree<T, Compare>::size_type
+rb_tree<T, Compare>::erase_multi(const key_type& key) {
+    auto res = equal_range_multi(key);
+    auto count = tinystl::distance(res.first, res.second);
+    erase(res.first, res.second);
+    return count;
+}
+
+/// @brief 删除键值等于 key 的元素，返回删除的个数
+template <class T, class Compare>
+typename rb_tree<T, Compare>::size_type
+rb_tree<T, Compare>::erase_unique(const key_type& key) {
+    auto it = find(key);
+    if (it == end()) return 0;
+    erase(it);
+    return 1;
+}
+
+/// @brief 删除 [first, last) 范围内的元素
+template <class T, class Compare>
+void rb_tree<T, Compare>::erase(iterator first, iterator last) {
+    if (first == begin() && last == end()) clear();
+    else {
+        while (first != last) erase(first++);
+    }
+}
+
+/// @brief 清空 rb-tree
+template <class T, class Compare>
+void rb_tree<T, Compare>::clear() {
+    if (node_count_ != 0) {
+        erase_since(root());
+        leftmost() = header_;
+        root() = nullptr;
+        rightmost() = header_;
+        node_count_ = 0;
+    }
+}
+
+/// @brief 查找键值为 key 的元素，若找到，返回指向该元素的迭代器，否则返回 end()
+template <class T, class Compare>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::find(const key_type& key) {
+    auto y = header_;  // 最后一个不小于 key 的节点
+    auto x = root();   // 当前节点
+    while (x != nullptr) {
+        // key 小于等于 x 键值，向左走
+        if (!key_comp_(value_traits::get_key(x->get_node_ptr()->value), key)) {
+            y = x;
+            x = x->left;
+        }
+        else x = x->right;
+    }
+    iterator res(y);
+    // 若 res 不等于 end()，且 key 小于等于 res 键值，返回 res
+    if (res != end() && !key_comp_(key, value_traits::get_key(*res))) return res;
+    return end();
+}
+
+/// @brief 查找键值为 key 的元素，若找到，返回指向该元素的迭代器，否则返回 end()
+template <class T, class Compare>
+typename rb_tree<T, Compare>::const_iterator
+rb_tree<T, Compare>::find(const key_type& key) const {
+    auto y = header_;  // 最后一个不小于 key 的节点
+    auto x = root();   // 当前节点
+    while (x != nullptr) {
+        // key 小于等于 x 键值，向左走
+        if (!key_comp_(value_traits::get_key(x->get_node_ptr()->value), key)) {
+            y = x;
+            x = x->left;
+        }
+        else x = x->right;
+    }
+    const_iterator res(y);
+    // 若 res 不等于 end()，且 key 小于等于 res 键值，返回 res
+    if (res != end() && !key_comp_(key, value_traits::get_key(*res))) return res;
+    return end();
+}
+
+/// @brief 键值不小于 key 的第一个位置
+template <class T, class Compare>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::lower_bound(const key_type& key) {
+    auto y = header_;  // 最后一个不小于 key 的节点
+    auto x = root();   // 当前节点
+    while (x != nullptr) {
+        // key 小于等于 x 键值，向左走
+        if (!key_comp_(value_traits::get_key(x->get_node_ptr()->value), key)) {
+            y = x;
+            x = x->left;
+        }
+        else x = x->right;
+    }
+    return iterator(y);
+}
+
+/// @brief 键值不小于 key 的第一个位置
+template <class T, class Compare>
+typename rb_tree<T, Compare>::const_iterator
+rb_tree<T, Compare>::lower_bound(const key_type& key) const {
+    auto y = header_;  // 最后一个不小于 key 的节点
+    auto x = root();   // 当前节点
+    while (x != nullptr) {
+        // key 小于等于 x 键值，向左走
+        if (!key_comp_(value_traits::get_key(x->get_node_ptr()->value), key)) {
+            y = x;
+            x = x->left;
+        }
+        else x = x->right;
+    }
+    return const_iterator(y);
+}
+
+/// @brief 键值不小于 key 的最后一个位置
+template <class T, class Compare>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::upper_bound(const key_type& key) {
+    auto y = header_;  // 最后一个不小于 key 的节点
+    auto x = root();   // 当前节点
+    while (x != nullptr) {
+        // key 小于 x 键值，向左走
+        if (key_comp_(key, value_traits::get_key(x->get_node_ptr()->value))) {
+            y = x;
+            x = x->left;
+        }
+        else x = x->right;
+    }
+    return iterator(y);
+}
+
+/// @brief 键值不小于 key 的最后一个位置
+template <class T, class Compare>
+typename rb_tree<T, Compare>::const_iterator
+rb_tree<T, Compare>::upper_bound(const key_type& key) const {
+    auto y = header_;  // 最后一个不小于 key 的节点
+    auto x = root();   // 当前节点
+    while (x != nullptr) {
+        // key 小于 x 键值，向左走
+        if (key_comp_(key, value_traits::get_key(x->get_node_ptr()->value))) {
+            y = x;
+            x = x->left;
+        }
+        else x = x->right;
+    }
+    return const_iterator(y);
+}
+
+/// @brief 交换 rb-tree
+template <class T, class Compare>
+void rb_tree<T, Compare>::swap(rb_tree& rhs) noexcept {
+    if (this != &rhs) {
+        tinystl::swap(header_, rhs.header_);
+        tinystl::swap(node_count_, rhs.node_count_);
+        tinystl::swap(key_comp_, rhs.key_comp_);
+    }
+}
+
+// ======================================= 辅助函数 ======================================= // 
+
 
 }  // namespace tinystl
  
