@@ -677,8 +677,11 @@ private:  // rb_tree 的数据成员
     key_compare key_comp_;    // 节点键值比较准则
 
 private:
+    /// @brief 获取根节点
     base_ptr& root()      const { return header_->parent; }
+    /// @brief 获取最小节点
     base_ptr& leftmost()  const { return header_->left; }
+    /// @brief 获取最大节点
     base_ptr& rightmost() const { return header_->right; }
 
 public:  // 构造、复制、析构函数
@@ -852,8 +855,8 @@ private:  // 辅助函数
     iterator insert_node_at(base_ptr x, node_ptr node, bool add_to_left);
 
     // insert use hint
-    iterator insert_multi_use_hint(base_ptr hint, key_type key, node_ptr node);
-    iterator insert_unique_use_hint(base_ptr hint, key_type key, node_ptr node);
+    iterator insert_multi_use_hint(iterator hint, key_type key, node_ptr node);
+    iterator insert_unique_use_hint(iterator hint, key_type key, node_ptr node);
 
     // copy / erase
     base_ptr copy_from(base_ptr x, base_ptr p);
@@ -1213,6 +1216,287 @@ void rb_tree<T, Compare>::swap(rb_tree& rhs) noexcept {
 
 // ======================================= 辅助函数 ======================================= // 
 
+/// @brief 创建节点
+template <class T, class Compare>
+template <class ...Args>
+typename rb_tree<T, Compare>::node_ptr
+rb_tree<T, Compare>::create_node(Args&& ...args) {
+    auto tmp = node_allocator::allocate(1);
+    try {
+        // 在节点位置构造元素
+        data_allocator::construct(tinystl::address_of(tmp->value), tinystl::forward<Args>(args)...);
+        tmp->parent = nullptr;
+        tmp->left = nullptr;
+        tmp->right = nullptr;
+    }
+    catch (...) {
+        node_allocator::deallocate(tmp);
+        throw;
+    }
+    return tmp;
+}
+
+/// @brief 复制节点
+template <class T, class Compare>
+typename rb_tree<T, Compare>::node_ptr
+rb_tree<T, Compare>::clone_node(base_ptr x) {
+    auto tmp = create_node(x->get_node_ptr()->value);
+    tmp->color = x->color;
+    tmp->left = nullptr;
+    tmp->right = nullptr;
+    return tmp;
+}
+
+
+/// @brief 销毁节点
+template <class T, class Compare>
+void rb_tree<T, Compare>::destroy_node(node_ptr x) {
+    data_allocator::destroy(tinystl::address_of(x->value));
+    node_allocator::deallocate(x);
+}
+
+/// @brief 初始化 rb-tree
+template <class T, class Compare>
+void rb_tree<T, Compare>::rb_tree_init() {
+    header_ = base_allocator::allocate(1);
+    header_->color = rb_tree_red;  // header_ 为红色，与 root 区分
+    root() = nullptr;
+    leftmost() = header_;
+    rightmost() = header_;
+    node_count_ = 0;
+}
+
+/// @brief 重置 rb-tree
+template <class T, class Compare>
+void rb_tree<T, Compare>::reset() {
+    header_ = nullptr;
+    node_count_ = 0;
+}
+
+/// @brief 获取插入位置，键值允许重复，返回一个 pair，其中 first 为插入位置（父节点），second 表示是否在左侧插入
+template <class T, class Compare>
+tinystl::pair<typename rb_tree<T, Compare>::base_ptr, bool>
+rb_tree<T, Compare>::get_insert_multi_pos(const key_type& key) {
+    auto x = root();
+    auto y = header_;
+    bool add_to_left = true;
+    while (x != nullptr) {
+        y = x;
+        add_to_left = key_comp_(key, value_traits::get_key(x->get_node_ptr()->value));
+        x = add_to_left ? x->left : x->right;
+    }
+    return tinystl::make_pair(y, add_to_left);
+}
+
+/// @brief 获取插入位置，键值不允许重复，返回一个 pair<pair, bool>，其中 first 为一个 pair，
+///       first.first 为插入位置，first.second 表示是否在左侧插入，second 表示是否插入成功
+template <class T, class Compare>
+tinystl::pair<tinystl::pair<typename rb_tree<T, Compare>::base_ptr, bool>, bool>
+rb_tree<T, Compare>::get_insert_unique_pos(const key_type& key) {
+    auto x = root();
+    auto y = header_;
+    bool add_to_left = true;  // 树为空时也在 header_ 左边插入
+    while (x != nullptr) {
+        y = x;
+        add_to_left = key_comp_(key, value_traits::get_key(x->get_node_ptr()->value));
+        x = add_to_left ? x->left : x->right;
+    }
+    iterator it(y);  // y 为插入点的父节点
+    if (add_to_left) {
+        // 如果树为空树或插入点在最左节点处，肯定可以插入新的节点 
+        if (y == header_ || it == begin()) {
+            return tinystl::make_pair(tinystl::make_pair(y, true), true);
+        }
+        // 否则，如果存在重复节点，那么 --it 就是重复的值
+        else --it;
+    }
+    // 表明新节点没有重复
+    if (key_comp_(value_traits::get_key(*it), key)) {
+        return tinystl::make_pair(tinystl::make_pair(y, add_to_left), true);
+    }
+    // 进行至此，表示新节点与现有节点键值重复
+    return tinystl::make_pair(tinystl::make_pair(y, add_to_left), false);
+}
+
+/// @brief 在 x 位置插入节点，节点值为 value，add_to_left 表示是否在左侧插入
+template <class T, class Compare>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::insert_value_at(base_ptr x, const value_type& value, bool add_to_left) {
+    node_ptr node = create_node(value);
+    node->parent = x;
+    auto base_node = node->get_base_ptr();
+    if (x == header_) {
+        root() = base_node;
+        leftmost() = base_node;
+        rightmost() = base_node;
+    }
+    else if (add_to_left) {
+        x->left = base_node;
+        if (x == leftmost()) leftmost() = base_node;
+    }
+    else {
+        x->right = base_node;
+        if (x == rightmost()) rightmost() = base_node;
+    }
+    rb_tree_insert_rebalance(base_node, root());
+    ++node_count_;
+    return iterator(node);
+}
+
+/// @brief 在 x 位置插入 node 节点，add_to_left 表示是否在左侧插入
+template <class T, class Compare>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::
+insert_node_at(base_ptr x, node_ptr node, bool add_to_left) {
+    node->parent = x;
+    auto base_node = node->get_base_ptr();
+    if (x == header_) {
+        root() = base_node;
+        leftmost() = base_node;
+        rightmost() = base_node;
+    }
+    else if (add_to_left) {
+        x->left = base_node;
+        if (x == leftmost()) leftmost() = base_node;
+    }
+    else {
+        x->right = base_node;
+        if (x == rightmost()) rightmost() = base_node;
+    }
+    rb_tree_insert_rebalance(base_node, root());
+    ++node_count_;
+    return iterator(node);
+}
+
+/// @brief 插入元素，键值允许重复，使用 hint
+template <class T, class Compare>
+typename rb_tree<T, Compare>::iterator 
+rb_tree<T, Compare>::insert_multi_use_hint(iterator hint, key_type key, node_ptr node) {
+    auto np = hint.node;
+    auto before = hint;
+    -- before;
+    auto bnp = before.node;
+    // before <= node <= hint
+    if (!key_comp_(key, value_traits::get_key(*before)) && 
+        !key_comp_(value_traits::get_key(*hint), key)) {
+        // 插入 bnp 的右侧
+        if (bnp->right == nullptr) {
+            return insert_node_at(bnp, node, false);
+        }
+        // 插入 np 的左侧
+        else if (np->left == nullptr) {
+            return insert_node_at(np, node, true);
+        }
+    }
+    auto pos = get_insert_multi_pos(key);
+    return insert_node_at(pos.first, node, pos.second);
+}
+
+/// @brief 插入元素，键值不允许重复，使用 hint 
+template <class T, class Compare>
+typename rb_tree<T, Compare>::iterator
+rb_tree<T, Compare>::insert_unique_use_hint(iterator hint, key_type key, node_ptr node) {
+    auto np = hint.node;
+    auto before = hint;
+    --before;
+    auto bnp = before.node;
+
+    // before < node < hint
+    if (key_comp_(value_traits::get_key(*before), key) &&
+        key_comp_(key, value_traits::get_key(*hint))) {
+        // 插入 bnp 的右侧
+        if (bnp->right == nullptr) {
+            return insert_node_at(bnp, node, false);
+        }
+        // 插入 np 的左侧
+        else if (np->left == nullptr) {
+            return insert_node_at(np, node, true);
+        }
+    }
+    auto res = get_insert_unique_pos(key);
+    if (!res.second) {
+        destroy_node(node);
+        return res.first.first;
+    }
+    return insert_node_at(res.first.first, node, res.first.second);
+}
+
+/// @brief 复制一棵树，节点从 x 开始，p 为 x 的父节点
+template <class T, class Compare>
+typename rb_tree<T, Compare>::base_ptr
+rb_tree<T, Compare>::copy_from(base_ptr x, base_ptr p) {
+    auto top = clone_node(x);
+    top->parent = p;
+    try {
+        // 若有右子树，则递归复制
+        if (x->right) top->right = copy_from(x->right, top);
+        p = top;
+        x = x->left;
+        while (x != nullptr) {
+            auto y = clone_node(x);
+            p->left = y;
+            y->parent = p;
+            if (x->right) y->right = copy_from(x->right, y);
+            p = y;
+            x = x->left;
+        }
+    }
+    catch (...) {
+        erase_since(top);
+        throw;
+    }
+    return top;
+}
+
+/// @brief 从 x 开始递归删除树
+template <class T, class Compare>
+void rb_tree<T, Compare>::erase_since(base_ptr x) {
+    while (x != nullptr) {
+        erase_since(x->right);
+        auto y = x->left;
+        destroy_node(x->get_node_ptr());
+        x = y;
+    }
+}
+
+// ========================================= 重载比较操作符 ========================================= //
+
+template <class T, class Compare>
+bool operator==(const rb_tree<T, Compare>& lhs, const rb_tree<T, Compare>& rhs) {
+    return lhs.size() == rhs.size() && tinystl::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
+template <class T, class Compare>
+bool operator<(const rb_tree<T, Compare>& lhs, const rb_tree<T, Compare>& rhs) {
+    return tinystl::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+}
+
+template <class T, class Compare>
+bool operator!=(const rb_tree<T, Compare>& lhs, const rb_tree<T, Compare>& rhs) {
+    return !(lhs == rhs);
+}
+
+template <class T, class Compare>
+bool operator>(const rb_tree<T, Compare>& lhs, const rb_tree<T, Compare>& rhs) {
+    return rhs < lhs;
+}
+
+template <class T, class Compare>
+bool operator<=(const rb_tree<T, Compare>& lhs, const rb_tree<T, Compare>& rhs) {
+    return !(rhs < lhs);
+}
+
+template <class T, class Compare>
+bool operator>=(const rb_tree<T, Compare>& lhs, const rb_tree<T, Compare>& rhs) {
+    return !(lhs < rhs);
+}
+
+// ========================================= 重载 swap ========================================= //
+
+template <class T, class Compare>
+void swap(rb_tree<T, Compare>& lhs, rb_tree<T, Compare>& rhs) noexcept {
+    lhs.swap(rhs);
+}
 
 }  // namespace tinystl
  
