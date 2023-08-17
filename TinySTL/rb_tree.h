@@ -386,7 +386,7 @@ void rb_tree_rotate_left(NodePtr x, NodePtr root) noexcept {
     auto y = x->right;
     x->right = y->left;
     if (y->left != nullptr) y->left->parent = x;
-    y->parent = x->parent;  // TODO: why?
+    y->parent = x->parent;
 
     // 如果 x 为根节点，让 y 顶替 x 成为根节点
     if (x == root) root = y;
@@ -775,7 +775,7 @@ public:  // 元素相关操作
         size_type n = tinystl::distance(first, last);
         THROW_LENGTH_ERROR_IF(node_count_ > max_size() - n, "rb_tree<T, Comp>'s size too big");
         for (; n > 0; --n, ++first)
-        insert_unique(end(), *first);
+            insert_unique(end(), *first);
     }
 
     // ====================== erase ====================== //
