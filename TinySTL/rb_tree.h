@@ -108,21 +108,23 @@ struct rb_tree_node_base {
     typedef rb_tree_node_base<T>*               base_ptr;
     typedef rb_tree_node<T>*                    node_ptr;
 
-    base_ptr parent;      // 父节点
-    base_ptr left;        // 左子节点
-    base_ptr right;       // 右子节点
-    color_type color;     // 节点颜色
+    base_ptr   parent;      // 父节点
+    base_ptr   left;        // 左子节点
+    base_ptr   right;       // 右子节点
+    color_type color;       // 节点颜色
 
     base_ptr get_base_ptr() {
         return &*this;
     }
 
     node_ptr get_node_ptr() {
-        return static_cast<node_ptr>(get_base_ptr());  // TODO: 试试 static_cast 行不行
+        // return static_cast<node_ptr>(get_base_ptr());  // TODO: 试试 static_cast 行不行
+        return reinterpret_cast<node_ptr>(&*this);
     }
 
     node_ptr& get_node_ref() {
-        return static_cast<node_ptr&>(*this);
+        // return static_cast<node_ptr&>(*this);
+        return reinterpret_cast<node_ptr&>(*this);
     }
 };
 
@@ -199,7 +201,7 @@ struct rb_tree_iterator_base : public tinystl::iterator<tinystl::bidirectional_i
     void dec() {
         // 如果 node 为 header，则指向整棵树的 max 节点
         if (node->parent->parent == node && rb_tree_is_red(node)) {
-            node = node->right;
+            node = node->right;  // 指向整棵树的 max 节点
         }
         else if (node->left != nullptr) {
             node = rb_tree_max(node->left);
@@ -285,7 +287,7 @@ struct rb_tree_const_iterator : public rb_tree_iterator_base<T> {
     typedef rb_tree_const_iterator<T>             const_iterator;
     typedef const_iterator                        self;
 
-    using rb_tree_iterator_base<T>::node = node;
+    using rb_tree_iterator_base<T>::node;  // 见 note
 
     // 构造函数
     rb_tree_const_iterator() {}
@@ -346,7 +348,7 @@ bool rb_tree_is_lchild(NodePtr x) noexcept {
 /// @brief 判断该节点的颜色是否为红色
 template <class NodePtr>
 bool rb_tree_is_red(NodePtr x) noexcept {
-    return x->color == rb_tree_color::red;
+    return x->color == rb_tree_red;
 }
 
 /// @brief 将节点染成黑色
@@ -370,6 +372,8 @@ NodePtr rb_tree_next(NodePtr x) noexcept {
 }
 
 // ============== rb-tree rotate ============== //
+// 根节点为引用传参！！！根节点为引用传参！！！根节点为引用传参！！！
+// 要修改根节点的值，必须传引用！！！
 
 /*---------------------------------------*\
 |       p                         p       |
@@ -382,7 +386,7 @@ NodePtr rb_tree_next(NodePtr x) noexcept {
 \*---------------------------------------*/
 // 左旋，参数一为左旋点，参数二为根节点
 template <class NodePtr>
-void rb_tree_rotate_left(NodePtr x, NodePtr root) noexcept {
+void rb_tree_rotate_left(NodePtr x, NodePtr& root) noexcept {
     auto y = x->right;
     x->right = y->left;
     if (y->left != nullptr) y->left->parent = x;
@@ -409,7 +413,7 @@ void rb_tree_rotate_left(NodePtr x, NodePtr root) noexcept {
 \*----------------------------------------*/
 // 右旋，参数一为右旋点，参数二为根节点
 template <class NodePtr>
-void rb_tree_rotate_right(NodePtr x, NodePtr root) noexcept {
+void rb_tree_rotate_right(NodePtr x, NodePtr& root) noexcept {
     auto y = x->left;
     x->left = y->right;
     if (y->right != nullptr) y->right->parent = x;
@@ -693,7 +697,7 @@ public:  // 构造、复制、析构函数
     rb_tree& operator=(const rb_tree& rhs);
     rb_tree& operator=(rb_tree&& rhs) noexcept;
 
-    ~rb_tree() { rb_tree_clear(); }
+    ~rb_tree() { clear(); }
 
 public:  // 迭代器相关操作
     iterator                begin()     noexcept        { return leftmost(); }
@@ -935,6 +939,12 @@ rb_tree<T, Compare>::emplace_unique(Args&& ...args) {
     THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Compare>'s size too big");
     node_ptr node = create_node(tinystl::forward<Args>(args)...);
     auto res = get_insert_unique_pos(value_traits::get_key(node->value));
+    
+    // std::cout << "leftmost: " << leftmost()->get_node_ptr()->value << " " << 
+    // "rightmost: " << rightmost()->get_node_ptr()->value << std::endl;
+   
+    // std::cout << "res.second: " << res.second << std::endl;
+
     // 插入成功
     if (res.second) {
         return tinystl::make_pair(insert_node_at(res.first.first, node, res.first.second), true);
@@ -1302,14 +1312,19 @@ rb_tree<T, Compare>::get_insert_unique_pos(const key_type& key) {
         x = add_to_left ? x->left : x->right;
     }
     iterator it(y);  // y 为插入点的父节点
+    // iterator it = iterator(y);
     if (add_to_left) {
         // 如果树为空树或插入点在最左节点处，肯定可以插入新的节点 
-        if (y == header_ || it == begin()) {
+        if (it == begin()) {
             return tinystl::make_pair(tinystl::make_pair(y, true), true);
         }
-        // 否则，如果存在重复节点，那么 --it 就是重复的值
+        // 否则（插入节点的父节点不是最左节点）
         else --it;
     }
+
+    // std::cout << "addleft: " << add_to_left << " " << "it: " << value_traits::get_key(*it) << " " 
+    // << "key: " << key << std::endl;
+
     // 表明新节点没有重复
     if (key_comp_(value_traits::get_key(*it), key)) {
         return tinystl::make_pair(tinystl::make_pair(y, add_to_left), true);

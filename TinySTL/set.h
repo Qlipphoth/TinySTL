@@ -92,8 +92,8 @@ public:  // 迭代器相关操作
     const_iterator         begin()   const noexcept { return tree_.begin(); }
     iterator               end()           noexcept { return tree_.end(); }
     const_iterator         end()     const noexcept { return tree_.end(); }
-    reverse_iterator       rbegin()        noexcept { return tree_.rbegin(); }
-    const_reverse_iterator rbegin()  const noexcept { return tree_.rbegin(); }
+    reverse_iterator       rbegin()        noexcept { return tree_.crbegin(); }  // TODO: 理解这里的转换关系
+    const_reverse_iterator rbegin()  const noexcept { return tree_.crbegin(); }
     reverse_iterator       rend()          noexcept { return tree_.rend(); }
     const_reverse_iterator rend()    const noexcept { return tree_.rend(); }
 
@@ -149,7 +149,7 @@ public:  // set 相关操作
     iterator       find(const key_type& key)              { return tree_.find(key); }
     const_iterator find(const key_type& key)        const { return tree_.find(key); }
 
-    size_type      count(const key_type& key)       const { return tree_.count_unique(key) }
+    size_type      count(const key_type& key)       const { return tree_.count_unique(key); }
 
     iterator       lower_bound(const key_type& key)       { return tree_.lower_bound(key); }
     const_iterator lower_bound(const key_type& key) const { return tree_.lower_bound(key); }
@@ -271,7 +271,7 @@ public:  // 构造、复制、移动函数
 
     multiset& operator=(std::initializer_list<value_type> ilist) {
         tree_.clear();
-        tree_.insert_equal(ilist.begin(), ilist.end());
+        tree_.insert_multi(ilist.begin(), ilist.end());
         return *this;
     }
 
@@ -285,8 +285,8 @@ public:  // 迭代器相关
     const_iterator         begin()   const noexcept { return tree_.begin(); }
     iterator               end()           noexcept { return tree_.end(); }
     const_iterator         end()     const noexcept { return tree_.end(); }
-    reverse_iterator       rbegin()        noexcept { return tree_.rbegin(); }
-    const_reverse_iterator rbegin()  const noexcept { return tree_.rbegin(); }
+    reverse_iterator       rbegin()        noexcept { return tree_.crbegin(); }
+    const_reverse_iterator rbegin()  const noexcept { return tree_.crbegin(); }
     reverse_iterator       rend()          noexcept { return tree_.rend(); }
     const_reverse_iterator rend()    const noexcept { return tree_.rend(); }
 
@@ -342,7 +342,7 @@ public:  // multiset 相关操作
     iterator       find(const key_type& key)              { return tree_.find(key); }
     const_iterator find(const key_type& key)        const { return tree_.find(key); }
 
-    size_type      count(const key_type& key)       const { return tree_.count_multi(key) }
+    size_type      count(const key_type& key)       const { return tree_.count_multi(key); }
 
     iterator       lower_bound(const key_type& key)       { return tree_.lower_bound(key); }
     const_iterator lower_bound(const key_type& key) const { return tree_.lower_bound(key); }

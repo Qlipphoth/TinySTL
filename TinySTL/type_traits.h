@@ -33,10 +33,10 @@ namespace tinystl {
     struct pair;
 
     template <class T>
-    struct is_pair : m_false_type {};
+    struct is_pair : tinystl::m_false_type {};
 
     template <class T1, class T2>
-    struct is_pair<tinystl::pair<T1, T2>> : m_true_type {};
+    struct is_pair<tinystl::pair<T1, T2>> : tinystl::m_true_type {};
 
 }  // namespace tinystl
 
