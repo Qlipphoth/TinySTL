@@ -102,18 +102,16 @@ void multiset_test() {
     tinystl::multiset<int> s10;
     s10 = { 1,2,3,4,5 };
 
-    for (int i = 5; i > 0; --i)
-    {
-      FUN_AFTER(s1, s1.emplace(i));
+    for (int i = 5; i > 0; --i) {
+        FUN_AFTER(s1, s1.emplace(i));
     }
     FUN_AFTER(s1, s1.emplace_hint(s1.begin(), 0));
     FUN_AFTER(s1, s1.erase(s1.begin()));
     FUN_AFTER(s1, s1.erase(0));
     FUN_AFTER(s1, s1.erase(1));
     FUN_AFTER(s1, s1.erase(s1.begin(), s1.end()));
-    for (int i = 0; i < 5; ++i)
-    {
-      FUN_AFTER(s1, s1.insert(i));
+    for (int i = 0; i < 5; ++i) {
+        FUN_AFTER(s1, s1.insert(i));
     }
     FUN_AFTER(s1, s1.insert(a, a + 5));
     FUN_AFTER(s1, s1.insert(5));
