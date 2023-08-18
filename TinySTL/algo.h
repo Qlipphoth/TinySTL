@@ -46,6 +46,21 @@ void reverse(BidirectionalIterator first, BidirectionalIterator last) {
     tinystl::reverse_dispatch(first, last, iterator_category(first));
 }
 
+/*****************************************************************************************/
+// lower_bound
+// 在[first, last)中查找第一个不小于 value 的元素，并返回指向它的迭代器，若没有则返回 last
+/*****************************************************************************************/
+
+template <class ForwardIter, class T>
+ForwardIter lower_bound(ForwardIter first, ForwardIter last, const T& value) {
+
+}
+
+
+
+
+
+
 }  // namespace tinystl
 
 #endif  // TINYSTL_ALGO_H_
