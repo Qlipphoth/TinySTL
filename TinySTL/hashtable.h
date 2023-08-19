@@ -546,24 +546,900 @@ public:  // 构造、复制、移动、析构函数
 
     ~hashtable() { clear(); }
 
+public:  // 迭代器相关操作
+    iterator begin() noexcept { return M_begin(); }
+    const_iterator begin() const noexcept { return M_begin(); }
+    const_iterator cbegin() const noexcept { return M_begin(); }
 
+    iterator end() noexcept { return iterator(nullptr, this); }
+    const_iterator end() const noexcept { return M_cit(nullptr); }
+    const_iterator cend() const noexcept { return M_cit(nullptr); }
 
+public:  // 容量相关操作
+    bool      empty()    const noexcept { return size_ == 0; }
+    size_type size()     const noexcept { return size_; }
+    size_type max_size() const noexcept { return static_cast<size_type>(-1); }
 
+public:  // 修改容器相关操作
+    template <class ...Args>
+    iterator emplace_multi(Args&&... args);
 
+    template <class ...Args>
+    tinystl::pair<iterator, bool> emplace_unique(Args&&... args);
 
+    // [note]: hint 对于 hash_table 其实没有意义，因为即使提供了 hint，也要做一次 hash，
+    // 来确保 hash_table 的性质，所以选择忽略它
+    template <class ...Args>
+    iterator emplace_multi_use_hint(const_iterator /*hint*/, Args&&... args) {
+        return emplace_multi(tinystl::forward<Args>(args)...);
+    }
 
+    template <class ...Args>
+    iterator emplace_unique_use_hint(const_iterator /*hint*/, Args&&... args) {
+        return emplace_unique(tinystl::forward<Args>(args)...).first;
+    }
 
+    iterator insert_multi_noresize(const value_type& value);
+    pair<iterator, bool> insert_unique_noresize(const value_type& value);
 
+    iterator insert_multi(const value_type& value) {
+        rehash_if_need(1);
+        return insert_multi_noresize(value);
+    }
 
+    iterator insert_multi(value_type&& value) {
+        return emplace_multi(tinystl::move(value));
+    }
 
+    pair<iterator, bool> insert_unique(const value_type& value) {
+        rehash_if_need(1);
+        return insert_unique_noresize(value);
+    }
 
+    pair<iterator, bool> insert_unique(value_type&& value) {
+        return emplace_unique(tinystl::move(value));
+    }
 
+    iterator insert_multi_use_hint(const_iterator /*hint*/, const value_type& value) {
+        return insert_multi(value);
+    }
 
+    iterator insert_multi_use_hint(const_iterator /*hint*/, value_type&& value) {
+        return emplace_multi(tinystl::move(value));
+    }
 
+    iterator insert_unique_use_hint(const_iterator /*hint*/, const value_type& value) {
+        return insert_unique(value).first;
+    }
+
+    iterator insert_unique_use_hint(const_iterator /*hint*/, value_type&& value) {
+        return emplace_unique(tinystl::move(value)).first;
+    }
+
+    template <class InputIterator>
+    void insert_multi(InputIterator first, InputIterator last) {
+        copy_insert_multi(first, last, tinystl::iterator_category(first));
+    }
+
+    template <class InputIterator>
+    void insert_unique(InputIterator first, InputIterator last) {
+        copy_insert_unique(first, last, tinystl::iterator_category(first));
+    }
+
+    void erase(const_iterator pos);
+    void erase(const_iterator first, const_iterator last);
+
+    size_type erase_multi(const key_type& key);
+    size_type erase_unique(const key_type& key);
+
+    void clear();
+
+    void swap(hashtable& rhs) noexcept;
+
+public:  // 查找相关操作
+    size_type                                     count(const key_type& key) const;
+
+    iterator                                      find(const key_type& key);
+    const_iterator                                find(const key_type& key) const;
+
+    tinystl::pair<iterator, iterator>             equal_range_multi(const key_type& key);
+    tinystl::pair<const_iterator, const_iterator> equal_range_multi(const key_type& key) const;
+
+    tinystl::pair<iterator, iterator>             equal_range_unique(const key_type& key);
+    tinystl::pair<const_iterator, const_iterator> equal_range_unique(const key_type& key) const;
+
+public:  // bucket 操作
+    // 同名函数均用 size_type 作为参数，实现重载
+
+    local_iterator begin(size_type n) noexcept {
+        TINYSTL_DEBUG(n < size_);
+        return local_iterator(buckets_[n]);
+    }
+
+    const_local_iterator begin(size_type n) const noexcept {
+        TINYSTL_DEBUG(n < size_);
+        return const_local_iterator(buckets_[n]);
+    }
+
+    const_local_iterator cbegin(size_type n) const noexcept {
+        TINYSTL_DEBUG(n < size_);
+        return const_local_iterator(buckets_[n]);
+    }
+
+    local_iterator end(size_type n) noexcept {
+        TINYSTL_DEBUG(n < size_);
+        return nullptr;
+    }
+
+    const_local_iterator end(size_type n) const noexcept {
+        TINYSTL_DEBUG(n < size_);
+        return nullptr;
+    }
+
+    const_local_iterator cend(size_type n) const noexcept {
+        TINYSTL_DEBUG(n < size_);
+        return nullptr;
+    }
+
+    
+    size_type bucket_count() const noexcept { return bucket_size_; }
+    // hash 桶能装下的最大元素个数
+    size_type max_bucket_count() const noexcept { return ht_prime_list[PRIME_NUM - 1]; }
+
+    size_type bucket_size(size_type n) const noexcept;
+    size_type bucket(const key_type& key) const { return hash(key); }
+
+public:  // hash 相关操作
+    float load_factor() const noexcept {
+        return bucket_size_ != 0 ? static_cast<float>(size_) / bucket_size_ : 0.0f;
+    }
+
+    float max_load_factor() const noexcept { return mlf_; }
+
+    void max_load_factor(float ml) noexcept {
+        // ml != ml 用于判断 ml 是否为 NaN
+        THROW_OUT_OF_RANGE_IF(ml != ml || ml < 0, "invalid hash load factor");
+        mlf_ = ml;
+    }
+
+    void rehash(size_type count);
+
+    /// @brief 重新分配桶的个数
+    /// @param count 元素个数
+    void reserve(size_type count) {
+        rehash(static_cast<size_type>(static_cast<float>(count) / max_load_factor() + 0.5f));
+    }
+
+    hasher hash_function()  const { return hash_; }
+    key_equal key_eq()      const { return equal_; }
+
+private:  // hashtable 成员函数
+    void init(size_type n);
+    void copy_init(const hashtable& rhs);
+
+    template <class ...Args>
+    node_ptr create_node(Args&&... args);
+
+    void destroy_node(node_ptr node);
+
+    size_type next_size(size_type n) const;
+    size_type hash(const key_type& key, size_type n) const;
+    size_type hash(const key_type& key) const;
+    void      rehash_if_need(size_type n);
+
+    template <class InputIterator>
+    void copy_insert_multi(InputIterator first, InputIterator last, tinystl::input_iterator_tag);
+
+    template <class ForwardIterator>
+    void copy_insert_multi(ForwardIterator first, ForwardIterator last, tinystl::forward_iterator_tag);
+
+    template <class InputIterator>
+    void copy_insert_unique(InputIterator first, InputIterator last, tinystl::input_iterator_tag);
+
+    template <class ForwardIterator>
+    void copy_insert_unique(ForwardIterator first, ForwardIterator last, tinystl::forward_iterator_tag);
+
+    pair<iterator, bool> insert_node_unique(node_ptr node);
+    iterator             insert_node_multi(node_ptr node);
+
+    void replace_bucket(size_type bucket_count);
+    void erase_bucket(size_type n, node_ptr first, node_ptr last);
+    void erase_bucket(size_type n, node_ptr last);
+
+    bool equal_to_multi(const hashtable& other);
+    bool equal_to_unique(const hashtable& other);
 
 };
 
+// ========================================= 函数实现 ========================================= //
 
+/// @brief 复制赋值运算符
+template <class T, class Hash, class KeyEqual>
+hashtable<T, Hash, KeyEqual>&
+hashtable<T, Hash, KeyEqual>::operator=(const hashtable& rhs) {
+    if (this != &rhs) {
+        hashtable tmp(rhs);
+        swap(tmp);
+    }
+    return *this;
+}
+
+/// @brief 移动赋值运算符
+template <class T, class Hash, class KeyEqual>
+hashtable<T, Hash, KeyEqual>&
+hashtable<T, Hash, KeyEqual>::operator=(hashtable&& rhs) noexcept {
+    hashtable tmp(tinystl::move(rhs));
+    swap(tmp);
+    return *this;
+}
+
+/// @brief 就地构造元素，键值允许重复，强异常安全保证
+template <class T, class Hash, class KeyEqual>
+template <class ...Args>
+typename hashtable<T, Hash, KeyEqual>::iterator
+hashtable<T, Hash, KeyEqual>::emplace_multi(Args&&... args) {
+    auto np = create_node(tinystl::forward<Args>(args)...);
+    try {
+        if (static_cast<float>(size_ + 1) > static_cast<float>(bucket_size_) * max_load_factor()) {
+            rehash_if_need(size_ + 1);
+        }
+    }
+    catch (...) {
+        destroy_node(np);
+        throw;
+    }
+    return insert_node_multi(np);
+}
+
+/// @brief 就地构造元素，键值不允许重复，强异常安全保证
+template <class T, class Hash, class KeyEqual>
+template <class ...Args>
+tinystl::pair<typename hashtable<T, Hash, KeyEqual>::iterator, bool>
+hashtable<T, Hash, KeyEqual>::emplace_unique(Args&&... args) {
+    auto np = create_node(tinystl::forward<Args>(args)...);
+    try {
+        if (static_cast<float>(size_ + 1) > static_cast<float>(bucket_size_) * max_load_factor()) {
+            rehash_if_need(size_ + 1);
+        }
+    }
+    catch (...) {
+        destroy_node(np);
+        throw;
+    }
+    return insert_node_unique(np);
+}
+
+/// @brief 在不需要重新分配桶的情况下插入新节点，键值允许重复
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::iterator
+hashtable<T, Hash, KeyEqual>::insert_multi_noresize(const value_type& value) {
+    const auto n = hash(value_traits::get_key(value));
+    auto first = buckets_[n];
+    auto tmp = create_node(value);
+    for (auto cur = first; cur; cur = cur->next) {
+        // 如果链表中存在相同键值的节点就马上插入，然后返回
+        if (is_equal(value_traits::get_key(cur->value), value_traits::get_key(value))) {
+            tmp->next = cur->next;
+            cur->next = tmp;
+            ++size_;
+            return iterator(tmp, this);
+        }
+    }
+    // 否则插入在链表头部
+    tmp->next = first;  // 将新节点插入到链表头部
+    buckets_[n] = tmp;  // 更新 bucket[n] 的头部
+    ++size_;
+    return iterator(tmp, this);
+}
+
+template <class T, class Hash, class KeyEqual>
+tinystl::pair<typename hashtable<T, Hash, KeyEqual>::iterator, bool>
+hashtable<T, Hash, KeyEqual>::insert_unique_noresize(const value_type& value) {
+    const auto n = hash(value_traits::get_key(value));
+    auto first = buckets_[n];
+    for (auto cur = first; cur; cur = cur->next) {
+        // 如果链表中存在相同键值的节点就马上返回
+        if (is_equal(value_traits::get_key(cur->value), value_traits::get_key(value))) {
+            return tinystl::make_pair(iterator(cur, this), false);
+        }
+    }
+    // 否则插入在链表头部
+    auto tmp = create_node(value);
+    tmp->next = first;  // 将新节点插入到链表头部
+    buckets_[n] = tmp;  // 更新 bucket[n] 的头部
+    ++size_;
+    return tinystl::make_pair(iterator(tmp, this), true);
+}
+
+/// @brief 删除迭代器所指向的节点
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::erase(const_iterator pos) {
+    auto p = pos.node;
+    if (p) {
+        const n = hash(value_traits::get_key(p->value));  // 计算 bucket 的位置
+        auto cur = buckets_[n];
+        // p 位于链表的头部
+        if (cur == p) {
+            buckets_[n] = cur->next;
+            destroy_node(cur);
+            --size_;
+        }
+        // 否则在链表中查找 p
+        else {
+            auto next = cur->next;
+            while (next) {
+                if (next == p) {
+                    cur->next = next->next;
+                    destroy_node(next);
+                    --size_;
+                    break;
+                }
+                else {
+                    cur = next;
+                    next = cur->next;
+                }
+            }
+        }
+    }
+}
+
+/// @brief 删除 [first, last) 内的节点
+/// @tparam T 
+/// @tparam Hash 
+/// @tparam KeyEqual 
+/// @param first 
+/// @param last 
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::erase(const_iterator first, const_iterator last) {
+    if (first.node == last.node) return;
+    auto first_bucket = first.node
+        ? hash(value_traits::get_key(first.node->value))
+        : bucket_size_;  // TODO: 理解这里的写法
+    auto last_bucket = last.node
+        ? hash(value_traits::get_key(last.node->value))
+        : bucket_size_;
+    if (first_bucket == last_bucket) {
+        erase_bucket(first_bucket, first.node, last.node);
+    }
+    else {
+        erase_bucket(first_bucket, first.node, nullptr);
+        for (size_type n = first_bucket + 1; n < last_bucket; ++n) {
+            erase_bucket(n, buckets_[n], nullptr);
+        }
+        if (last_bucket != bucket_size_) {
+            erase_bucket(last_bucket, nullptr, last.node);
+        }
+    }
+}
+
+/// @brief 删除键值为 key 的节点，返回删除的节点个数
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::size_type
+hashtable<T, Hash, KeyEqual>::erase_multi(const key_type& key) {
+    auto p = equal_range_multi(key);
+    if (p.first.node != nullptr) {
+        erase(p.first, p.second);
+        return tinystl::distance(p.first, p.second);
+    }
+    return 0
+}
+
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::size_type
+hashtable<T, Hash, KeyEqual>::erase_unique(const key_type& key) {
+    const auto n = hash(key);
+    auto first = buckets_[n];
+    if (first) {
+        if (is_equal(value_traits::get_key(first->value), key)) {
+            buckets_[n] = first->next;
+            destroy_node(first);
+            --size_;
+            return 1;
+        }
+        else {
+            auto cur = first->next;
+            auto next = cur->next;
+            while (next) {
+                if (is_equal(value_traits::get_key(next->value), key)) {
+                    cur->next = next->next;
+                    destroy_node(next);
+                    --size_;
+                    return 1;
+                }
+                else {
+                    cur = next;
+                    next = cur->next;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+/// @brief 清空 hashtable
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::clear() {
+    if (size_ != 0) {
+        for (size_type i = 0; i < bucket_size_; ++i) {
+            auto cur = buckets_[i];
+            while (cur) {
+                auto next = cur->next;
+                destroy_node(cur);
+                cur = next;
+            }
+            buckets_[i] = nullptr;
+        }
+        size_ = 0;
+    }
+}
+
+/// @brief 得到某个 bucket 中节点的个数
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::size_type
+hashtable<T, Hash, KeyEqual>::bucket_size(size_type n) const noexcept {
+    size_type result = 0;
+    // 遍历 bucket[n] 链表
+    for (auto cur = buckets_[n]; cur; cur = cur->next) ++result;
+    return result;
+}
+
+/// @brief 重新对元素进行一遍哈希，插入到新的位置
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::rehash(size_type count) {
+    auto n = ht_next_prime(count);  // 获取 bucket 的大小
+    if (n > bucket_size_) {
+        replace_bucket(n);
+    }
+    else {
+        // 判断是否值得重新哈希
+        if (static_cast<float>(size_) / static_cast<float>(n) < max_load_factor() - 0.25f
+            && static_cast<float>(n) < static_cast<float>(bucket_size_) * 0.75f) {
+            replace_bucket(n);
+        }
+    }
+}
+
+/// @brief 查找键值为 key 的节点，返回迭代器
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::iterator
+hashtable<T, Hash, KeyEqual>::find(const key_type& key) {
+    const auto n = hash(key);
+    node_ptr first = buckets_[n];
+    for (; first && !is_equal(value_traits::get_key(first->value), key); first = first->next) {}
+    return iterator(first, this);
+}
+
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::const_iterator
+hashtable<T, Hash, KeyEqual>::find(const key_type& key) const {
+    const auto n = hash(key);
+    node_ptr first = buckets_[n];
+    for (; first && !is_equal(value_traits::get_key(first->value), key); first = first->next) {}
+    return M_cit(first);
+}
+
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::size_type
+hashtable<T, Hash, KeyEqual>::count(const key_type& key) const {
+    const auto n = hash(key);
+    size_type result = 0;
+    // 相同的值一定在同一个哈希桶里，所以只需要遍历 bucket[n] 即可
+    for (node_ptr cur = buckets_[n]; cur; cur = cur->next) {
+        if (is_equal(value_traits::get_key(cur->value), key)) ++result;
+    }
+    return result;
+}
+
+/// @brief 查找与键值 key 相等的区间，返回一个 pair，指向区间的首尾
+template <class T, class Hash, class KeyEqual>
+tinystl::pair<typename hashtable<T, Hash, KeyEqual>::iterator, 
+    typename hashtable<T, Hash, KeyEqual>::iterator>
+hashtable<T, Hash, KeyEqual>::equal_range_multi(const key_type& key) {
+    const auto n = hash(key);
+    for (node_ptr first = buckets_[n]; first; first = first->next) {
+        if (is_equal(value_traits::get_key(first->value), key)) {
+            for (node_ptr cur = first->next; cur; cur = cur->next) {
+                // 相等的区间在当前的桶范围之内
+                if (!is_equal(value_traits::get_key(cur->value), key)) {
+                    return tinystl::make_pair(iterator(first, this), iterator(cur, this));
+                }
+            }
+            // 当前桶直到最后一个元素都相等，查找下一个不为空的桶
+            for (size_type m = n + 1; m < bucket_size_; ++m) {
+                if (buckets_[m]) {
+                    return tinystl::make_pair(iterator(first, this), iterator(buckets_[m], this));
+                }
+            }
+            return tinystl::make_pair(iterator(first, this), end());
+        }
+    }
+    return tinystl::make_pair(end(), end());
+}
+
+template <class T, class Hash, class KeyEqual>
+tinystl::pair<typename hashtable<T, Hash, KeyEqual>::const_iterator, 
+    typename hashtable<T, Hash, KeyEqual>::const_iterator>
+hashtable<T, Hash, KeyEqual>::equal_range_multi(const key_type& key) const {
+    const auto n = hash(key);
+    for (node_ptr first = buckets_[n]; first; first = first->next) {
+        if (is_equal(value_traits::get_key(first->value), key)) {
+            for (node_ptr cur = first->next; cur; cur = cur->next) {
+                // 相等的区间在当前的桶范围之内
+                if (!is_equal(value_traits::get_key(cur->value), key)) {
+                    return tinystl::make_pair(M_cit(first), M_cit(cur));
+                }
+            }
+            // 当前桶直到最后一个元素都相等，查找下一个不为空的桶
+            for (size_type m = n + 1; m < bucket_size_; ++m) {
+                if (buckets_[m]) {
+                    return tinystl::make_pair(M_cit(first), M_cit(buckets_[m]));
+                }
+            }
+            return tinystl::make_pair(M_cit(first), end());
+        }
+    }
+    return tinystl::make_pair(cend(), cend());
+}
+
+/// @brief 查找与键值 key 相等的区间，返回一个 pair，指向区间的首尾
+template <class T, class Hash, class KeyEqual>
+tinystl::pair<typename hashtable<T, Hash, KeyEqual>::iterator, 
+    typename hashtable<T, Hash, KeyEqual>::iterator>
+hashtable<T, Hash, KeyEqual>::equal_range_unique(const key_type& key) {
+    const auto n = hash(key);
+    for (node_ptr first = buckets_[n]; first; first = first->next) {
+        if (is_equal(value_traits::get_key(first->value), key)) {
+            if (first->next) {
+                return tinystl::make_pair(iterator(first, this), iterator(first->next, this));
+            }
+            for (auto m = n + 1; m < bucket_size_; ++m) {
+                if (buckets_[m]) {
+                    return tinystl::make_pair(iterator(first, this), iterator(buckets_[m], this));
+                }
+            }
+            return tinystl::make_pair(iterator(first, this), end());
+        }
+    }
+    return tinystl::make_pair(end(), end());
+}
+
+template <class T, class Hash, class KeyEqual>
+tinystl::pair<typename hashtable<T, Hash, KeyEqual>::const_iterator, 
+    typename hashtable<T, Hash, KeyEqual>::const_iterator>
+hashtable<T, Hash, KeyEqual>::equal_range_unique(const key_type& key) const {
+    const auto n = hash(key);
+    for (node_ptr first = buckets_[n]; first; first = first->next) {
+        if (is_equal(value_traits::get_key(first->value), key)) {
+            if (first->next) {
+                return tinystl::make_pair(M_cit(first), M_cit(first->next));
+            }
+            for (auto m = n + 1; m < bucket_size_; ++m) {
+                if (buckets_[m]) {
+                    return tinystl::make_pair(M_cit(first), M_cit(buckets_[m]));
+                }
+            }
+            return tinystl::make_pair(M_cit(first), cend());
+        }
+    }
+    return tinystl::make_pair(cend(), cend());
+}
+
+/// @brief 交换两个 hashtable
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::swap(hashtable& rhs) noexcept {
+    if (this != &rhs) {
+        tinystl::swap(buckets_, rhs.buckets_);
+        tinystl::swap(bucket_size_, rhs.bucket_size_);
+        tinystl::swap(size_, rhs.size_);
+        tinystl::swap(hash_, rhs.hash_);
+        tinystl::swap(equal_, rhs.equal_);
+        tinystl::swap(mlf_, rhs.mlf_);
+    }
+}
+
+// ======================================= 辅助函数实现 ======================================= //
+
+/// @brief 初始化能容纳 n 个元素的 hashtable
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::init(size_type n) {
+    const auto bucket_count = next_size(n);
+    try {
+        buckets_.reserve(bucket_count);
+        // 初始化 buckets_，将每个 bucket 置为空
+        // buckets_ 为 vector，可以使用 vector 的 assign 方法
+        buckets_.assign(bucket_count, nullptr);
+    }
+    catch (...) {
+        bucket_size_ = 0;
+        size_ = 0;
+        throw;
+    }
+    bucket_size_ = buckets_.size();
+}
+
+/// @brief 用一个 hashtable 初始化当前 hashtable
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::copy_init(const hashtable& rhs) {
+    bucket_size_ = 0;
+    buckets_.reserve(rhs.bucket_size_);
+    buckets_.assign(rhs.bucket_size_, nullptr);
+    try {
+        for (size_type i = 0; i < rhs.bucket_size_; ++i) {
+            auto cur = rhs.buckets_[i];
+            // 如果 rhs 的某个 bucket 处存在链表
+            if (cur) {
+                auto copy = create_node(cur->value);
+                buckets_[i] = copy;
+                // 复制链表
+                for (auto next = cur->next; next; cur = next, next = cur->next) {
+                    copy->next = create_node(next->value);
+                    copy = copy->next;
+                }
+                copy->next = nullptr;
+            }
+        }
+        bucket_size_ = rhs.bucket_size_;
+        size_ = rhs.size_;
+        mlf_ = rhs.mlf_;
+    }
+    catch (...) {
+        clear();
+        // throw;
+    }
+}
+
+/// @brief 创建一个节点
+template <class T, class Hash, class KeyEqual>
+template <class ...Args>
+typename hashtable<T, Hash, KeyEqual>::node_ptr
+hashtable<T, Hash, KeyEqual>::create_node(Args&& ...args) {
+    node_ptr np = node_allocator::allocate(1);
+    try {
+        data_allocator::construct(tinystl::address_of(np->value), tinystl::forward<Args>(args)...);
+        np->next = nullptr;
+    }
+    catch (...) {
+        node_allocator::deallocate(np);
+        throw;        
+    }
+    return np;
+}
+
+/// @brief 销毁一个节点
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::destroy_node(node_ptr node) {
+    data_allocator::destroy(tinystl::address_of(node->value));
+    node_allocator::deallocate(node);
+    node = nullptr;
+}
+
+/// @brief 根据 n 计算 bucket 的大小
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::size_type
+hashtable<T, Hash, KeyEqual>::next_size(size_type n) const {
+    return ht_next_prime(n);
+}
+
+/// @brief 根据 key 计算 hash 值，对 n 取模
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::size_type
+hashtable<T, Hash, KeyEqual>::hash(const key_type& key, size_type n) const {
+    return hash_(key) % n;
+}
+
+/// @brief 根据 key 计算 hash 值，对 bucket_size_ 取模
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::size_type
+hashtable<T, Hash, KeyEqual>::hash(const key_type& key) const {
+    return hash_(key) % bucket_size_;
+}
+
+/// @brief 如果插入 n 个元素后，负载因子大于最大负载因子，就重新分配桶的个数
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::rehash_if_need(size_type n) {
+    if (static_cast<float>(size_ + n) > static_cast<float>(bucket_size_) * max_load_factor()) {
+        rehash(next_size(size_ + n));
+    }
+}
+
+/// @brief 将 [first, last) 内的元素插入到 hashtable 中，键值允许重复
+template <class T, class Hash, class KeyEqual>
+template <class InputIterator>
+void hashtable<T, Hash, KeyEqual>::copy_insert_multi(InputIterator first, InputIterator last, 
+    tinystl::input_iterator_tag) {
+    rehash_if_need(tinystl::distance(first, last));
+    for (; first != last; ++first) {
+        insert_multi_noresize(*first);
+    }
+}
+
+template <class T, class Hash, class KeyEqual>
+template <class ForwardIterator>
+void hashtable<T, Hash, KeyEqual>::copy_insert_multi(ForwardIterator first, ForwardIterator last, 
+    tinystl::forward_iterator_tag) {
+    auto n = tinystl::distance(first, last);
+    rehash_if_need(n);
+    for (; n > 0; --n, ++first) {
+        insert_multi_noresize(*first);
+    }
+}
+
+/// @brief 将 [first, last) 内的元素插入到 hashtable 中，键值不允许重复
+template <class T, class Hash, class KeyEqual>
+template <class InputIterator>
+void hashtable<T, Hash, KeyEqual>::copy_insert_unique(InputIterator first, InputIterator last, 
+    tinystl::input_iterator_tag) {
+    rehash_if_need(tinystl::distance(first, last));
+    for (; first != last; ++first) {
+        insert_unique_noresize(*first);
+    }
+}
+
+template <class T, class Hash, class KeyEqual>
+template <class ForwardIterator>
+void hashtable<T, Hash, KeyEqual>::copy_insert_unique(ForwardIterator first, ForwardIterator last, 
+    tinystl::forward_iterator_tag) {
+    auto n = tinystl::distance(first, last);
+    rehash_if_need(n);
+    for (; n > 0; --n, ++first) {
+        insert_unique_noresize(*first);
+    }
+}
+
+/// @brief 在 hashtable 中插入一个节点，键值允许重复
+template <class T, class Hash, class KeyEqual>
+typename hashtable<T, Hash, KeyEqual>::iterator
+hashtable<T, Hash, KeyEqual>::insert_node_multi(node_ptr node) {
+    const auto n = hash(value_traits::get_key(node->value));
+    auto cur = buckets_[n];
+    if (cur == nullptr) {
+        buckets_[n] = node;
+        ++size_;
+        return iterator(node, this);
+    }
+    for (; cur->next; cur = cur->next) {
+        // 如果链表中存在相同键值的节点就马上插入，然后返回
+        // 相同键值的节点放在一起，方便查找
+        if (is_equal(value_traits::get_key(cur->value), value_traits::get_key(node->value))) {
+            node->next = cur->next;
+            cur->next = node;
+            ++size_;
+            return iterator(node, this);
+        }
+    }
+    // 否则插入在链表头部
+    node->next = buckets_[n];  // 将新节点插入到链表头部
+    buckets_[n] = node;        // 更新 bucket[n] 的头部
+    ++size_;
+    return iterator(node, this);
+}
+
+/// @brief 在 hashtable 中插入一个节点，键值不允许重复
+template <class T, class Hash, class KeyEqual>
+pair<typename hashtable<T, Hash, KeyEqual>::iterator, bool>
+hashtable<T, Hash, KeyEqual>::insert_node_unique(node_ptr node) {
+    const auto n = hash(value_traits::get_key(node->value));
+    auto cur = buckets_[n];
+    if (cur == nullptr) {
+        buckets_[n] = node;
+        ++size_;
+        return tinystl::make_pair(iterator(node, this), true);
+    }
+    for (; cur->next; cur = cur->next) {
+        // 如果链表中存在相同键值的节点就马上返回
+        // 相同键值的节点放在一起，方便查找
+        if (is_equal(value_traits::get_key(cur->value), value_traits::get_key(node->value))) {
+            return tinystl::make_pair(iterator(cur, this), false);
+        }
+    }
+    // 否则插入在链表头部
+    node->next = buckets_[n];  // 将新节点插入到链表头部
+    buckets_[n] = node;        // 更新 bucket[n] 的头部
+    ++size_;
+    return tinystl::make_pair(iterator(node, this), true);
+}
+
+/// @brief 用新的桶替换旧的桶
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::replace_bucket(size_type bucket_count) {
+    bucket_type bucket(bucket_count);
+    if (size_ != 0) {
+        // 遍历每一个 bucket
+        for (size_type i = 0; i < bucket_size_; ++i) {
+            // 遍历 bucket 中的每一个节点
+            for (auto first = buckets_[i]; first; first = first->next) {
+                auto tmp = create_node(first->value);
+                // 计算新的哈希值，即新的 bucket 的位置
+                const auto n = hash(value_traits::get_key(first->value), bucket_count);
+                auto f = bucket[n];
+                bool is_inserted = false;
+                for (auto cur = f; cur; cur = cur->next) {
+                    // 找到与当前节点相同键值的节点，插入到该节点之后
+                    if (is_equal(value_traits::get_key(cur->value), value_traits::get_key(tmp->value))) {
+                        tmp->next = cur->next;
+                        cur->next = tmp;
+                        is_inserted = true;
+                        break;  // TODO: 这样做不会导致多一个节点吗？
+                    }
+                }
+                // 如果没有找到相同键值的节点，就插入到链表头部
+                if (!is_inserted) {
+                    tmp->next = f;
+                    bucket[n] = tmp;
+                }
+            }
+        }
+    }
+    buckets_.swap(bucket);
+    bucket_size_ = buckets_.size();
+}
+
+/// @brief 在第 n 个 bucket 内，删除 [first, last) 内的节点
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::erase_bucket(size_type n, node_ptr first, node_ptr last) {
+    auto cur = buckets_[n];
+    if (cur == first) {
+        erase_bucket(n, last);
+    }
+    else {
+        auto next = cur->next;
+        for (; next != first; cur = next, next = cur->next) {}
+        while (next != last) {
+            cur->next = next->next;
+            destroy_node(next);
+            next = cur->next;
+            --size_;
+        }
+    }
+}
+
+/// @brief 在第 n 个 bucket 内，删除 [buckets_[n], last) 内的节点
+template <class T, class Hash, class KeyEqual>
+void hashtable<T, Hash, KeyEqual>::erase_bucket(size_type n, node_ptr last) {
+    auto cur = buckets_[n];
+    while (cur != last) {
+        auto next = cur->next;
+        destroy_node(cur);
+        cur = next;
+        --size_;
+    }
+    buckets_[n] = last;
+}
+
+/// @brief 判断两个 hashtable 是否相等，键值允许重复
+template <class T, class Hash, class KeyEqual>
+bool hashtable<T, Hash, KeyEqual>::equal_to_multi(const hashtable& rhs) {
+    if (size_ != rhs.size_) return false;
+    for (auto f = begin(), l = end(); f != l) {
+        auto p1 = equal_range_multi(value_traits::get_key(*f));
+        auto p2 = rhs.equal_range_multi(value_traits::get_key(*f));
+        if (tinystl::distance(p1.first, p1.second) != tinystl::distance(p2.first, p2.second) ||
+            !tinystl::is_permutation(p1.first, p2.second, p2.first, p2.second)) {
+            return false;
+        }
+        f = p1.second;
+    }
+    return true;
+}
+
+/// @brief 判断两个 hashtable 是否相等，键值不允许重复
+template <class T, class Hash, class KeyEqual>
+bool hashtable<T, Hash, KeyEqual>::equal_range_unique(const hashtable& rhs) {
+    if (size_ != rhs.size_) return false;
+    for (auto f = begin(), l = end(); f != l; ++f) {
+        auto res = rhs.find(value_traits::get_key(*f));
+        if (res.node == nullptr || *res != *f) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// @brief 交换两个 hashtable
+template <class T, class Hash, class KeyEqual>
+void swap(hash_table<T, Hash, KeyEqual>& lhs, hash_table<T, Hash, KeyEqual>& rhs) noexcept {
+    lhs.swap(rhs);
+}
 
 }  // namespace tinystl
 

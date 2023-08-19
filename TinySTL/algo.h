@@ -56,9 +56,17 @@ ForwardIter lower_bound(ForwardIter first, ForwardIter last, const T& value) {
 
 }
 
+/*****************************************************************************************/
+// is_permutation
+// 判断[first1,last1)是否为[first2, last2)的排列组合
+/*****************************************************************************************/
 
-
-
+template <class ForwardIter1, class ForwardIter2>
+bool is_permutation(ForwardIter1 first1, ForwardIter1 last1,
+                    ForwardIter2 first2, ForwardIter2 last2)
+{
+  
+}
 
 
 }  // namespace tinystl
