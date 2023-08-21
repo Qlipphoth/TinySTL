@@ -190,7 +190,7 @@ struct ht_iterator : public ht_iterator_base<T, Hash, KeyEqual> {
         node = node->next;  // 移动到下一个节点处
         // 如果下一个位置为空，说明已经到达链表尾部，需要跳到下一个 bucket
         if (node == nullptr) {
-            auto index = ht->hash(value_traits::get_key(old_value));
+            auto index = ht->hash(value_traits::get_key(old->value));
             while (!node && ++index < ht->bucket_size_) {
                 node = ht->buckets_[index];
             } 
@@ -218,6 +218,10 @@ struct ht_const_iterator : public ht_iterator_base<T, Hash, KeyEqual> {
     typedef T                                   value_type;
     typedef const value_type*                   pointer;
     typedef const value_type&                   reference;
+
+    // 使用 base 的 node 及 ht 指针
+    using base::node;
+    using base::ht;
 
     ht_const_iterator() = default;
     ht_const_iterator(node_ptr n, contain_ptr t) {
@@ -254,7 +258,7 @@ struct ht_const_iterator : public ht_iterator_base<T, Hash, KeyEqual> {
     pointer   operator->() const { return &(operator*()); }
 
     const_iterator& operator++() {
-        MYSTL_DEBUG(node != nullptr);
+        TINYSTL_DEBUG(node != nullptr);
         const node_ptr old = node;
         node = node->next;
         // 如果下一个位置为空，说明已经到达链表尾部，需要跳到下一个 bucket
@@ -497,13 +501,13 @@ private:  // 辅助函数
     }
 
     const_iterator M_begin() const noexcept {
-        for (size_type i = 0; i < bucket_size_; ++i) {
+        for (size_type n = 0; n < bucket_size_; ++n) {
             // 找到第一个不为空的 bucket
-            if (buckets_[i]) {
+            if (buckets_[n]) {
                 return M_cit(buckets_[n]);
             }
         }
-        return M_cit(buckets_[n]);
+        return M_cit(nullptr);
     }
 
 public:  // 构造、复制、移动、析构函数
@@ -687,6 +691,8 @@ public:  // bucket 操作
     size_type max_bucket_count() const noexcept { return ht_prime_list[PRIME_NUM - 1]; }
 
     size_type bucket_size(size_type n) const noexcept;
+
+    /// @brief 返回键值为 key 的元素所在的 bucket 的编号
     size_type bucket(const key_type& key) const { return hash(key); }
 
 public:  // hash 相关操作
@@ -856,7 +862,7 @@ template <class T, class Hash, class KeyEqual>
 void hashtable<T, Hash, KeyEqual>::erase(const_iterator pos) {
     auto p = pos.node;
     if (p) {
-        const n = hash(value_traits::get_key(p->value));  // 计算 bucket 的位置
+        const auto n = hash(value_traits::get_key(p->value));  // 计算 bucket 的位置
         auto cur = buckets_[n];
         // p 位于链表的头部
         if (cur == p) {
@@ -884,11 +890,6 @@ void hashtable<T, Hash, KeyEqual>::erase(const_iterator pos) {
 }
 
 /// @brief 删除 [first, last) 内的节点
-/// @tparam T 
-/// @tparam Hash 
-/// @tparam KeyEqual 
-/// @param first 
-/// @param last 
 template <class T, class Hash, class KeyEqual>
 void hashtable<T, Hash, KeyEqual>::erase(const_iterator first, const_iterator last) {
     if (first.node == last.node) return;
@@ -904,10 +905,10 @@ void hashtable<T, Hash, KeyEqual>::erase(const_iterator first, const_iterator la
     else {
         erase_bucket(first_bucket, first.node, nullptr);
         for (size_type n = first_bucket + 1; n < last_bucket; ++n) {
-            erase_bucket(n, buckets_[n], nullptr);
+            if (buckets_[n] != nullptr) erase_bucket(n, nullptr);
         }
         if (last_bucket != bucket_size_) {
-            erase_bucket(last_bucket, nullptr, last.node);
+            erase_bucket(last_bucket, last.node);
         }
     }
 }
@@ -921,7 +922,7 @@ hashtable<T, Hash, KeyEqual>::erase_multi(const key_type& key) {
         erase(p.first, p.second);
         return tinystl::distance(p.first, p.second);
     }
-    return 0
+    return 0;
 }
 
 template <class T, class Hash, class KeyEqual>
@@ -937,19 +938,16 @@ hashtable<T, Hash, KeyEqual>::erase_unique(const key_type& key) {
             return 1;
         }
         else {
-            auto cur = first->next;
-            auto next = cur->next;
+            auto next = first->next;
             while (next) {
                 if (is_equal(value_traits::get_key(next->value), key)) {
-                    cur->next = next->next;
+                    first->next = next->next;
                     destroy_node(next);
                     --size_;
                     return 1;
                 }
-                else {
-                    cur = next;
-                    next = cur->next;
-                }
+                first = next;
+                next = first->next;
             }
         }
     }
@@ -1325,7 +1323,7 @@ hashtable<T, Hash, KeyEqual>::insert_node_unique(node_ptr node) {
         ++size_;
         return tinystl::make_pair(iterator(node, this), true);
     }
-    for (; cur->next; cur = cur->next) {
+    for (; cur; cur = cur->next) {
         // 如果链表中存在相同键值的节点就马上返回
         // 相同键值的节点放在一起，方便查找
         if (is_equal(value_traits::get_key(cur->value), value_traits::get_key(node->value))) {
@@ -1410,7 +1408,7 @@ void hashtable<T, Hash, KeyEqual>::erase_bucket(size_type n, node_ptr last) {
 template <class T, class Hash, class KeyEqual>
 bool hashtable<T, Hash, KeyEqual>::equal_to_multi(const hashtable& rhs) {
     if (size_ != rhs.size_) return false;
-    for (auto f = begin(), l = end(); f != l) {
+    for (auto f = begin(), l = end(); f != l;) {
         auto p1 = equal_range_multi(value_traits::get_key(*f));
         auto p2 = rhs.equal_range_multi(value_traits::get_key(*f));
         if (tinystl::distance(p1.first, p1.second) != tinystl::distance(p2.first, p2.second) ||
@@ -1424,7 +1422,7 @@ bool hashtable<T, Hash, KeyEqual>::equal_to_multi(const hashtable& rhs) {
 
 /// @brief 判断两个 hashtable 是否相等，键值不允许重复
 template <class T, class Hash, class KeyEqual>
-bool hashtable<T, Hash, KeyEqual>::equal_range_unique(const hashtable& rhs) {
+bool hashtable<T, Hash, KeyEqual>::equal_to_unique(const hashtable& rhs) {
     if (size_ != rhs.size_) return false;
     for (auto f = begin(), l = end(); f != l; ++f) {
         auto res = rhs.find(value_traits::get_key(*f));
@@ -1437,7 +1435,7 @@ bool hashtable<T, Hash, KeyEqual>::equal_range_unique(const hashtable& rhs) {
 
 /// @brief 交换两个 hashtable
 template <class T, class Hash, class KeyEqual>
-void swap(hash_table<T, Hash, KeyEqual>& lhs, hash_table<T, Hash, KeyEqual>& rhs) noexcept {
+void swap(hashtable<T, Hash, KeyEqual>& lhs, hashtable<T, Hash, KeyEqual>& rhs) noexcept {
     lhs.swap(rhs);
 }
 

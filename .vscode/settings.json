@@ -52,7 +52,9 @@
         "map": "cpp",
         "iomanip": "cpp",
         "list": "cpp",
-        "set": "cpp"
+        "set": "cpp",
+        "hashtable.h": "c",
+        "unordered_set": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

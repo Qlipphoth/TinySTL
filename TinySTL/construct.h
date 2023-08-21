@@ -30,7 +30,7 @@ namespace tinystl {
     template <class Ty, class... Args>
     void construct(Ty* ptr, Args&&... args) {
         // 带参数构造与移动构造均使用这个函数
-        :: new ((void*) ptr) Ty(tinystl::forward<Args>(args)...);
+        ::new ((void*) ptr) Ty(tinystl::forward<Args>(args)...);
     }
 
     // destroy : 负责对象的析构
