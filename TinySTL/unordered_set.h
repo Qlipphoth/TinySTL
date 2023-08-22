@@ -224,7 +224,7 @@ public:  // 哈希函数相关
 
 public:
     friend bool operator==(const unordered_set& lhs, const unordered_set& rhs) {
-        return lhs.ht_ == rhs.ht_;
+        return lhs.ht_.equal_range_unique(rhs.ht_);
     }
 
     friend bool operator!=(const unordered_set& lhs, const unordered_set& rhs) {
@@ -465,7 +465,7 @@ public:  // 哈希函数相关
 
 public:
     friend bool operator==(const unordered_multiset& lhs, const unordered_multiset& rhs) {
-        return lhs.ht_ == rhs.ht_;
+        return lhs.ht_.equal_range_multi(rhs.ht_);
     }
 
     friend bool operator!=(const unordered_multiset& lhs, const unordered_multiset& rhs) {
