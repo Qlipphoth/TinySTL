@@ -26,7 +26,7 @@ template <class Category, class T, class Distance = ptrdiff_t,
 struct iterator {
     typedef Category    iterator_category;  // 迭代器类型
     typedef T           value_type;         // 迭代器所指对象的类型
-    typedef Distance    difference_type;    // 迭代器之间的距离
+    typedef Distance    difference_type;    // 迭代器之间的距离类型
     typedef Pointer     pointer;            // 指向迭代器所指对象的指针
     typedef Reference   reference;          // 迭代器所指对象的引用
 };
@@ -174,25 +174,25 @@ typename iterator_traits<Iterator>::value_type* value_type(const Iterator&) {
 template <class InputIterator>  // 以算法所能接受的最低阶迭代器类型，来为其迭代器类别参数命名
 typename iterator_traits<InputIterator>::difference_type __distance(InputIterator first, 
     InputIterator last, input_iterator_tag) {
-        typename iterator_traits<InputIterator>::difference_type n = 0;
-        while (first != last) {
-            ++first; ++n;
-        }
-        return n;
+    typename iterator_traits<InputIterator>::difference_type n = 0;
+    while (first != last) {
+        ++first; ++n;
     }
+    return n;
+}
 
 template <class RandomAccessIterator>  // 以算法所能接受的最低阶迭代器类型，来为其迭代器类别参数命名
 typename iterator_traits<RandomAccessIterator>::difference_type __distance(RandomAccessIterator first, 
     RandomAccessIterator last, random_access_iterator_tag) {
-        return last - first;  // 随机访问迭代器可以直接相减
-    }
+    return last - first;  // 随机访问迭代器可以直接相减
+}
 
 template <class InputIterator>
 typename iterator_traits<InputIterator>::difference_type distance(InputIterator first, 
     InputIterator last) {
-        typedef typename iterator_traits<InputIterator>::iterator_category category;
-        return __distance(first, last, category());  // 通过迭代器的类别来调用不同的函数
-    }
+    typedef typename iterator_traits<InputIterator>::iterator_category category;
+    return __distance(first, last, category());  // 通过迭代器的类别来调用不同的函数
+}
 
 
 // advance
