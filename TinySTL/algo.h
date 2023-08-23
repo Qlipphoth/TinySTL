@@ -347,43 +347,90 @@ ForwardIterator1 find_end(ForwardIterator1 first1, ForwardIterator1 last1,
         iterator_category(first1), iterator_category(first2), comp);
 }
 
-
-
 /*****************************************************************************************/
-// reverse
-// 将[first, last)区间内的元素反转
+// find_first_of
+// 在[first1, last1)中查找[first2, last2)中第一次出现的元素，返回指向第一次出现的元素的迭代器
 /*****************************************************************************************/
 
-template <class BidirectionalIterator>
-void reverse_dispatch(BidirectionalIterator first, BidirectionalIterator last, 
-    bidirectional_iterator_tag) {
-    while (true) {
-        if (first == last || first == --last) return;
-        tinystl::iter_swap(first++, last);
+/// @brief 在[first1, last1)中查找[first2, last2)中第一次出现的元素，返回指向第一次出现的元素的迭代器
+template <class InputIterator, class ForwardIterator>
+InputIterator find_first_of(InputIterator first1, InputIterator last1, 
+                            ForwardIterator first2, ForwardIterator last2) {
+    for (; first1 != last1; ++first1) {
+        for (auto iter = first2; iter != last2; ++iter) {
+            if (*first1 == *iter) return first1;
+        }
     }
+    return last1;
+} 
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作       
+template <class InputIterator, class ForwardIterator, class BinaryPredicate>
+InputIterator find_first_of(InputIterator first1, InputIterator last1,
+                            ForwardIterator first2, ForwardIterator last2,
+                            BinaryPredicate comp) {
+    for (; first1 != last1; ++first1) {
+        for (auto iter = first2; iter != last2; ++iter) {
+            if (comp(*first1, *iter)) return first1;
+        }
+    }
+    return last1;
 }
 
-template <class RandomAccessIterator>
-void reverse_dispatch(RandomAccessIterator first, RandomAccessIterator last, 
-    random_access_iterator_tag) {
-    while (first < last) {
-        tinystl::iter_swap(first++, --last);
+/*****************************************************************************************/
+// for_each
+// 使用一个函数对象 f 对[first, last)区间内的每个元素执行一个 operator() 操作，但不能改变元素内容
+// f() 可返回一个值，但该值会被忽略
+/*****************************************************************************************/
+
+/// @brief 使用一个函数对象 f 对[first, last)区间内的每个元素执行一个 operator() 操作，但不能改变元素内容
+template <class InputIterator, class Function>
+Function for_each(InputIterator first, InputIterator last, Function f) {
+    for (; first != last; ++first) {
+        f(*first);
     }
+    return f;
 }
 
-template <class BidirectionalIterator>
-void reverse(BidirectionalIterator first, BidirectionalIterator last) {
-    tinystl::reverse_dispatch(first, last, iterator_category(first));
+/*****************************************************************************************/
+// adjacent_find
+// 找出第一对匹配的相邻元素，缺省使用 operator== 比较，如果找到返回一个迭代器，指向这对元素的第一个元素
+/*****************************************************************************************/
+
+/// @brief 找出第一对匹配的相邻元素，缺省使用 operator== 比较，如果找到返回一个迭代器，指向这对元素的第一个元素
+template <class ForwardIterator>
+ForwardIterator adjacent_find(ForwardIterator first, ForwardIterator last) {
+    if (first == last) return last;
+    auto next = first;
+    while (++next != last) {
+        if (*first == *next) return first;
+        first = next;
+    }
+    return last;
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class ForwardIterator, class BinaryPredicate>
+ForwardIterator adjacent_find(ForwardIterator first, ForwardIterator last, BinaryPredicate comp) {
+    if (first == last) return last;
+    auto next = first;
+    while (++next != last) {
+        if (comp(*first, *next)) return first;
+        first = next;
+    }
+    return last;
 }
 
 /*****************************************************************************************/
 // lower_bound
 // 在[first, last)中查找第一个不小于 value 的元素，并返回指向它的迭代器，若没有则返回 last
+// 使用二分查找，所以要求[first, last)内的元素必须有序
+// 相当于 python 中的 bisect.bisect_left，返回的位置即为可以被插入的第一个合适位置
 /*****************************************************************************************/
 
 /// @brief lower_bound 的 forward_iterator_tag 版本
 template <class ForwardIterator, class T>
-ForwardIterator lbond_dispatch(ForwardIterator first, ForwardIterator last, 
+ForwardIterator lbound_dispatch(ForwardIterator first, ForwardIterator last, 
                                const T& value, forward_iterator_tag) {
     auto len = tinystl::distance(first, last);
     auto half = len;
@@ -405,7 +452,7 @@ ForwardIterator lbond_dispatch(ForwardIterator first, ForwardIterator last,
 
 /// @brief lower_bound 的 random_access_iterator_tag 版本 
 template <class RandomAccessIterator, class T>
-RandomAccessIterator lbond_dispatch(RandomAccessIterator first, RandomAccessIterator last, 
+RandomAccessIterator lbound_dispatch(RandomAccessIterator first, RandomAccessIterator last, 
                                     const T& value, random_access_iterator_tag) {
     auto len = last - first;
     auto half = len;
@@ -427,7 +474,7 @@ RandomAccessIterator lbond_dispatch(RandomAccessIterator first, RandomAccessIter
 /// @return  返回指向第一个不小于 value 的元素的迭代器，若没有则返回 last
 template <class ForwardIterator, class T>
 ForwardIterator lower_bound(ForwardIterator first, ForwardIterator last, const T& value) {
-    return tinystl::lbond_dispatch(first, last, value, iterator_category(first));
+    return tinystl::lbound_dispatch(first, last, value, iterator_category(first));
 }
 
 template <class ForwardIterator, class T, class Compare>
@@ -476,6 +523,176 @@ template <class ForwardIterator, class T, class Compare>
 ForwardIterator lower_bound(ForwardIterator first, ForwardIterator last, const T& value, Compare comp) {
     return tinystl::lbound_dispatch(first, last, value, comp, iterator_category(first));
 }
+
+/*****************************************************************************************/
+// upper_bound
+// 在[first, last)中查找第一个大于value 的元素，并返回指向它的迭代器，若没有则返回 last
+// 使用二分查找，所以要求[first, last)内的元素必须有序
+// 相当于 python 中的 bisect.bisect_right，返回的位置即为可以被插入的最后一个合适位置
+/*****************************************************************************************/
+
+/// @brief upper_bound 的 forward_iterator_tag 版本
+template <class ForwardIterator, class T>
+ForwardIterator ubound_dispatch(ForwardIterator first, ForwardIterator last, 
+                                const T& value, forward_iterator_tag) {
+    auto len = tinystl::distance(first, last);
+    auto half = len;
+    ForwardIterator middle;
+    while (len > 0) {
+        half = len >> 1;
+        middle = first;
+        tinystl::advance(middle, half);
+        if (value < *middle) len = half;
+        else {
+            first = middle;
+            ++first;
+            len = len - half - 1;
+        }
+    }
+    return first;
+}
+
+/// @brief upper_bound 的 random_access_iterator_tag 版本
+template <class RandomAccessIterator, class T>
+RandomAccessIterator ubound_dispatch(RandomAccessIterator first, RandomAccessIterator last, 
+                                     const T& value, random_access_iterator_tag) {
+    auto len = last - first;
+    auto half = len;
+    RandomAccessIterator middle;
+    while (len > 0) {
+        half = len >> 1;
+        middle = first + half;
+        if (value < *middle) len = half;
+        else {
+            first = middle + 1;
+            len = len - half - 1;
+        }
+    }
+    return first;
+}
+
+/// @brief 在[first, last)中查找第一个大于 value 的元素，根据迭代器类型调用不同版本的 ubound_dispatch
+template <class ForwardIterator, class T>
+ForwardIterator upper_bound(ForwardIterator first, ForwardIterator last, const T& value) {
+    return tinystl::ubound_dispatch(first, last, value, iterator_category(first));
+}
+
+template <class ForwardIterator, class T, class Compare>
+ForwardIterator ubound_dispatch(ForwardIterator first, ForwardIterator last, 
+                                const T& value, forward_iterator_tag, Compare comp) {
+    auto len = tinystl::distance(first, last);
+    auto half = len;
+    ForwardIterator middle;
+    while (len > 0) {
+        half = len >> 1;
+        middle = first;
+        tinystl::advance(middle, half);
+        if (comp(value, *middle)) len = half;
+        else {
+            first = middle;
+            ++first;
+            len = len - half - 1;
+        }
+    }
+    return first;
+}
+
+template <class RandomAccessIterator, class T, class Compare>
+RandomAccessIterator ubound_dispatch(RandomAccessIterator first, RandomAccessIterator last, 
+                                     const T& value, random_access_iterator_tag, Compare comp) {
+    auto len = last - first;
+    auto half = len;
+    RandomAccessIterator middle;
+    while (len > 0) {
+        half = len >> 1;
+        middle = first + half;
+        if (comp(value, *middle)) len = half;
+        else {
+            first = middle + 1;
+            len = len - half - 1;
+        }
+    }
+    return first;
+}
+
+/// @brief 在[first, last)中查找第一个大于 value 的元素，使用 comp 比较元素大小
+template <class ForwardIterator, class T, class Compare>
+ForwardIterator upper_bound(ForwardIterator first, ForwardIterator last, const T& value, Compare comp) {
+    return tinystl::ubound_dispatch(first, last, value, iterator_category(first), comp);
+}
+
+/*****************************************************************************************/
+// binary_search
+// 二分查找，如果在[first, last)内有等同于 value 的元素，返回 true，否则返回 false
+/*****************************************************************************************/
+
+/// @brief 二分查找，如果在[first, last)内有等同于 value 的元素，返回 true，否则返回 false
+template <class ForwardIterator, class T>
+bool binary_search(ForwardIterator first, ForwardIterator last, const T& value) {
+    auto i = tinystl::lower_bound(first, last, value);
+    // 最终 i 指向的位置如果不为 last，那么其中的值必然是 >= value 的，因此去除掉 > value 的情况
+    // 即可判断是否存在等于 value 的元素
+    return i != last && !(value < *i);
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class ForwardIterator, class T, class Compare>
+bool binary_search(ForwardIterator first, ForwardIterator last, const T& value, Compare comp) {
+    auto i = tinystl::lower_bound(first, last, value, comp);
+    return i != last && !comp(value, *i);
+}
+
+/*****************************************************************************************/
+// equal_range
+// 查找[first,last)区间中与 value 相等的元素所形成的区间，返回一对迭代器指向区间首尾
+// 第一个迭代器指向第一个不小于 value 的元素，第二个迭代器指向第一个大于 value 的元素
+// TODO: 我觉得直接调用 lbound 和 ubound 就可以了，为什么还要先找到中间元素呢
+/*****************************************************************************************/
+
+template <class ForwardIterator, class T>
+tinystl::pair<ForwardIterator, ForwardIterator>
+equal_range(ForwardIterator first, ForwardIterator last, const T& value) {
+    return tinystl::pair<ForwardIterator, ForwardIterator>(
+        tinystl::lower_bound(first, last, value),
+        tinystl::upper_bound(first, last, value));
+}
+
+template <class ForwardIterator, class T, class Compare>
+tinystl::pair<ForwardIterator, ForwardIterator>
+equal_range(ForwardIterator first, ForwardIterator last, const T& value, Compare comp) {
+    return tinystl::pair<ForwardIterator, ForwardIterator>(
+        tinystl::lower_bound(first, last, value, comp),
+        tinystl::upper_bound(first, last, value, comp));
+}
+
+
+/*****************************************************************************************/
+// reverse
+// 将[first, last)区间内的元素反转
+/*****************************************************************************************/
+
+template <class BidirectionalIterator>
+void reverse_dispatch(BidirectionalIterator first, BidirectionalIterator last, 
+    bidirectional_iterator_tag) {
+    while (true) {
+        if (first == last || first == --last) return;
+        tinystl::iter_swap(first++, last);
+    }
+}
+
+template <class RandomAccessIterator>
+void reverse_dispatch(RandomAccessIterator first, RandomAccessIterator last, 
+    random_access_iterator_tag) {
+    while (first < last) {
+        tinystl::iter_swap(first++, --last);
+    }
+}
+
+template <class BidirectionalIterator>
+void reverse(BidirectionalIterator first, BidirectionalIterator last) {
+    tinystl::reverse_dispatch(first, last, iterator_category(first));
+}
+
 
 
 /*****************************************************************************************/
