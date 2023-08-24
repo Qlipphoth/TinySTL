@@ -1365,7 +1365,316 @@ OutputIterator merge(InputIterator1 first1, InputIterator1 last1,
 /*****************************************************************************************/
 // inplace_merge
 // 把连接在一起的两个有序序列结合成单一序列并保持有序
+// TODO: 讲解
 /*****************************************************************************************/
+
+/// @brief 在没有缓冲区的情况下合并
+template <class BidirectionalIterator, class Distance>
+void merge_without_buffer(BidirectionalIterator first, BidirectionalIterator middle, 
+                          BidirectionalIterator last, Distance len1, Distance len2) {
+    if (len1 == 0 || len2 == 0) return;  // 有一个序列为空，不需要合并
+    if (len1 + len2 == 2) {  // 两个序列都只有一个元素，直接比较大小
+        if (*middle < *first) tinystl::iter_swap(first, middle);
+        return;
+    }
+    auto first_cut = first;
+    auto second_cut = middle;
+    Distance len11 = 0;
+    Distance len22 = 0;
+    // 序列一比较长，找到序列一的中点
+    if (len1 > len2) {
+        len11 = len1 >> 1;
+        tinystl::advance(first_cut, len11);
+        second_cut = tinystl::lower_bound(middle, last, *first_cut);
+        len22 = tinystl::distance(middle, second_cut);
+    }
+    // 序列二比较长，找到序列二的中点
+    else {  
+        len22 = len2 >> 1;
+        tinystl::advance(second_cut, len22);
+        first_cut = tinystl::upper_bound(first, middle, *second_cut);
+        len11 = tinystl::distance(first, first_cut);
+    }
+    // 将较小的部分旋转至前半段，较大的部分旋转至后半段
+    // 这样就将问题转化为了将两个长度更小的序列合并
+    auto new_middle = tinystl::rotate(first_cut, middle, second_cut);
+    // 递归解决子问题
+    tinystl::merge_without_buffer(first, first_cut, new_middle, len11, len22);
+    tinystl::merge_without_buffer(new_middle, second_cut, last, len1 - len11, len2 - len22);
+}
+
+/// @brief 将两个有序序列合并到以 result 为结尾的区间上
+template <class BidirectionalIterator1, class BidirectionalIterator2>
+BidirectionalIterator1 merge_backward(BidirectionalIterator1 first1, BidirectionalIterator1 last1, 
+                                      BidirectionalIterator2 first2, BidirectionalIterator2 last2, 
+                                      BidirectionalIterator1 result) {
+    if (first1 == last1) return tinystl::copy_backward(first2, last2, result);
+    if (first2 == last2) return tinystl::copy_backward(first1, last1, result);
+    --last1;
+    --last2;
+    while (true) {
+        if (*last2 < *last1) {
+            *--result = *last1;
+            if (first1 == last1) return tinystl::copy_backward(first2, ++last2, result);
+            --last1;
+        }
+        else {
+            *--result = *last2;
+            if (first2 == last2) return tinystl::copy_backward(first1, ++last1, result);
+            --last2;
+        }
+    }
+}
+
+/// @brief 对 [first, middle) 和 [middle, last) 两个区间进行旋转，根据 buffer 的情况选择效率最高的实现 
+template <class BidirectionalIterator1, class BidirectionalIterator2, class Distance>
+BidirectionalIterator1 rotate_adaptive(BidirectionalIterator1 first, BidirectionalIterator1 middle, 
+                                       BidirectionalIterator1 last, Distance len1, Distance len2, 
+                                       BidirectionalIterator2 buffer, Distance buffer_size) {
+    BidirectionalIterator2 buffer_end;
+    // 如果缓冲区能够装下序列二，就将序列二拷贝至缓冲区，
+    // 再将序列一拷贝至区间后方，将缓冲区（序列二）拷贝至区间前方，完成 rotate
+    // 思路类似于 rotate_copy
+    if (len1 > len2 && len2 <= buffer_size) {
+        buffer_end = tinystl::copy(middle, last, buffer);
+        tinystl::copy_backward(first, middle, last);
+        return tinystl::copy(buffer, buffer_end, first);
+    }
+    // 如果缓冲区能够装下序列一，就将序列一拷贝至缓冲区
+    else if (len1 <= buffer_size) {
+        buffer_end = tinystl::copy(first, middle, buffer);
+        tinystl::copy(middle, last, first);
+        return tinystl::copy_backward(buffer, buffer_end, last);
+    }
+    // 缓冲区装不下任何一个序列，使用原地 rotate，即 tinystl::rotate
+    else {
+        return tinystl::rotate(first, middle, last);
+    }
+}
+
+/// @brief 把连接在一起的两个有序序列结合成单一序列并保持有序，根据 buffer 的情况选择效率最高的实现
+template <class BidirectionalIterator, class Distance, class Pointer>
+void merge_adaptive(BidirectionalIterator first, BidirectionalIterator middle, 
+                    BidirectionalIterator last, Distance len1, Distance len2, 
+                    Pointer buffer, Distance buffer_size) {
+    // 缓冲区足够放进序列一
+    if (len1 <= len2 && len1 <= buffer_size) {
+        Pointer buffer_end = tinystl::copy(first, middle, buffer);
+        tinystl::merge(buffer, buffer_end, middle, last, first);
+    }
+    // 缓冲区足够放进序列二
+    else if (len2 <= buffer_size) {
+        Pointer buffer_end = tinystl::copy(middle, last, buffer);
+        tinystl::merge_backward(first, middle, buffer, buffer_end, last);
+    }
+    // 缓冲区放不下任何一个序列，分割递归处理，类似于 merge_without_buffer，但是在 rotate 时根据
+    // buffer 与处理区间的关系选用效率最高的 rotate 方法
+    else {
+        auto first_cut = first;
+        auto second_cut = middle;
+        Distance len11 = 0;
+        Distance len22 = 0;
+        if (len1 > len2) {
+            len11 = len1 >> 1;
+            tinystl::advance(first_cut, len11);
+            second_cut = tinystl::lower_bound(middle, last, *first_cut);
+            len22 = tinystl::distance(middle, second_cut);
+        }
+        else {
+            len22 = len2 >> 1;
+            tinystl::advance(second_cut, len22);
+            first_cut = tinystl::upper_bound(first, middle, *second_cut);
+            len11 = tinystl::distance(first, first_cut);
+        }
+        auto new_middle = tinystl::rotate_adaptive(first_cut, middle, second_cut, len1 - len11, len22, 
+                                                   buffer, buffer_size);
+        tinystl::merge_adaptive(first, first_cut, new_middle, len11, len22, buffer, buffer_size);
+        tinystl::merge_adaptive(new_middle, second_cut, last, len1 - len11, len2 - len22, buffer, buffer_size);
+    }
+    
+}
+
+template <class BidirectionalIterator, class T>
+void inplace_merge_aux(BidirectionalIterator first, BidirectionalIterator middle, 
+                       BidirectionalIterator last, T*) {
+    auto len1 = tinystl::distance(first, middle);
+    auto len2 = tinystl::distance(middle, last);
+    temporary_buffer<BidirectionalIterator, T> buf(first, last);  // 申请缓冲区
+    // 如果没有申请到缓冲区，就使用 merge_without_buffer
+    if (buf.begin() == nullptr) {
+        tinystl::merge_without_buffer(first, middle, last, len1, len2);
+    }
+    // 如果申请到了缓冲区，就使用 merge_adaptive
+    else {
+        tinystl::merge_adaptive(first, middle, last, len1, len2, buf.begin(), buf.size());
+    }
+}
+
+/// @brief 把连接在一起的两个有序序列结合成单一序列并保持有序
+template <class BidirectionalIterator>
+void inplace_merge(BidirectionalIterator first, BidirectionalIterator middle, 
+                   BidirectionalIterator last) {
+    if (first == middle || middle == last) return;
+    tinystl::inplace_merge_aux(first, middle, last, value_type(first));
+}
+
+// ============================ 重载版本使用函数对象 comp ================================= //
+
+/// @brief 在没有缓冲区的情况下合并
+template <class BidirectionalIterator, class Distance, class Compare>
+void merge_without_buffer(BidirectionalIterator first, BidirectionalIterator middle, 
+                          BidirectionalIterator last, Distance len1, Distance len2,
+                          Compare comp) {
+    if (len1 == 0 || len2 == 0) return;  // 有一个序列为空，不需要合并
+    if (len1 + len2 == 2) {  // 两个序列都只有一个元素，直接比较大小
+        if (comp(*middle, *first)) tinystl::iter_swap(first, middle);
+        return;
+    }
+    auto first_cut = first;
+    auto second_cut = middle;
+    Distance len11 = 0;
+    Distance len22 = 0;
+    // 序列一比较长，找到序列一的中点
+    if (len1 > len2) {
+        len11 = len1 >> 1;
+        tinystl::advance(first_cut, len11);
+        second_cut = tinystl::lower_bound(middle, last, *first_cut, comp);
+        len22 = tinystl::distance(middle, second_cut);
+    }
+    // 序列二比较长，找到序列二的中点
+    else {  
+        len22 = len2 >> 1;
+        tinystl::advance(second_cut, len22);
+        first_cut = tinystl::upper_bound(first, middle, *second_cut, comp);
+        len11 = tinystl::distance(first, first_cut);
+    }
+    // 将较小的部分旋转至前半段，较大的部分旋转至后半段
+    // 这样就将问题转化为了将两个长度更小的序列合并
+    auto new_middle = tinystl::rotate(first_cut, middle, second_cut);
+    // 递归解决子问题
+    tinystl::merge_without_buffer(first, first_cut, new_middle, len11, len22, comp);
+    tinystl::merge_without_buffer(new_middle, second_cut, last, len1 - len11, len2 - len22, comp);
+}
+
+/// @brief 将两个有序序列合并到以 result 为结尾的区间上
+template <class BidirectionalIterator1, class BidirectionalIterator2, class Compare>
+BidirectionalIterator1 merge_backward(BidirectionalIterator1 first1, BidirectionalIterator1 last1, 
+                                      BidirectionalIterator2 first2, BidirectionalIterator2 last2, 
+                                      BidirectionalIterator1 result, Compare comp) {
+    if (first1 == last1) return tinystl::copy_backward(first2, last2, result);
+    if (first2 == last2) return tinystl::copy_backward(first1, last1, result);
+    --last1;
+    --last2;
+    while (true) {
+        if (comp(*last2, *last1)) {
+            *--result = *last1;
+            if (first1 == last1) return tinystl::copy_backward(first2, ++last2, result);
+            --last1;
+        }
+        else {
+            *--result = *last2;
+            if (first2 == last2) return tinystl::copy_backward(first1, ++last1, result);
+            --last2;
+        }
+    }
+}
+
+template <class BidirectionalIterator, class Distance, class Pointer, class Compare>
+void merge_adaptive(BidirectionalIterator first, BidirectionalIterator middle,
+                    BidirectionalIterator last, Distance len1, Distance len2, 
+                    Pointer buffer, Distance buffer_size, Compare comp) {
+    // 缓冲区足够放进序列一
+    if (len1 <= len2 && len1 <= buffer_size) {
+        Pointer buffer_end = tinystl::copy(first, middle, buffer);
+        tinystl::merge(buffer, buffer_end, middle, last, first, comp);
+    }
+    // 缓冲区足够放进序列二
+    else if (len2 <= buffer_size) {
+        Pointer buffer_end = tinystl::copy(middle, last, buffer);
+        tinystl::merge_backward(first, middle, buffer, buffer_end, last, comp);
+    }
+    // 缓冲区放不下任何一个序列，分割递归处理，类似于 merge_without_buffer，但是在 rotate 时根据
+    // buffer 与处理区间的关系选用效率最高的 rotate 方法
+    else {
+        auto first_cut = first;
+        auto second_cut = middle;
+        Distance len11 = 0;
+        Distance len22 = 0;
+        if (len1 > len2) {
+            len11 = len1 >> 1;
+            tinystl::advance(first_cut, len11);
+            second_cut = tinystl::lower_bound(middle, last, *first_cut, comp);
+            len22 = tinystl::distance(middle, second_cut);
+        }
+        else {
+            len22 = len2 >> 1;
+            tinystl::advance(second_cut, len22);
+            first_cut = tinystl::upper_bound(first, middle, *second_cut, comp);
+            len11 = tinystl::distance(first, first_cut);
+        }
+        auto new_middle = tinystl::rotate_adaptive(first_cut, middle, second_cut, len1 - len11, len22, 
+                                                   buffer, buffer_size);
+        tinystl::merge_adaptive(first, first_cut, new_middle, len11, len22, buffer, buffer_size, comp);
+        tinystl::merge_adaptive(new_middle, second_cut, last, len1 - len11, len2 - len22, buffer, buffer_size, comp);
+    }
+}
+
+template <class BidirectionalIterator, class T, class Compare>
+void inplace_merge_aux(BidirectionalIterator first, BidirectionalIterator middle, 
+                       BidirectionalIterator last, T*, Compare comp) {
+    auto len1 = tinystl::distance(first, middle);
+    auto len2 = tinystl::distance(middle, last);
+    temporary_buffer<BidirectionalIterator, T> buf(first, last);  // 申请缓冲区
+    // 如果没有申请到缓冲区，就使用 merge_without_buffer
+    if (buf.begin() == nullptr) {
+        tinystl::merge_without_buffer(first, middle, last, len1, len2, comp);
+    }
+    // 如果申请到了缓冲区，就使用 merge_adaptive
+    else {
+        tinystl::merge_adaptive(first, middle, last, len1, len2, buf.begin(), buf.size(), comp);
+    }
+}
+
+/// @brief 把连接在一起的两个有序序列结合成单一序列并保持有序
+template <class BidirectionalIterator, class Compare>
+void inplace_merge(BidirectionalIterator first, BidirectionalIterator middle, 
+                   BidirectionalIterator last, Compare comp) {
+    if (first == middle || middle == last) return;
+    tinystl::inplace_merge_aux(first, middle, last, value_type(first), comp);
+}
+
+/*****************************************************************************************/
+// partial_sort
+// 对整个序列做部分排序，保证 [first, middle) 内的元素有序且小于 [middle, last) 内的元素
+// 思路：
+// 1. 在区间 [first, midlle) 上构造大根堆（max-heap）
+// 2. 遍历 [middle, last)，如果小于堆顶元素，就将堆顶元素与该元素交换，然后调整堆
+// 经过了步骤 2 后可以保证 [first, middle) 内的元素一定小于 [middle, last) 内的元素
+// 3. 最后将 [first, middle) 转化为有序序列
+/*****************************************************************************************/
+
+/// @brief 对整个序列做部分排序，保证 [first, middle) 内的元素有序且小于 [middle, last) 内的元素
+template <class RandomAccessIterator>
+void partial_sort(RandomAccessIterator first, RandomAccessIterator middle, 
+                  RandomAccessIterator last) {
+    tinystl::make_heap(first, middle);
+    for (auto i = middle; i != last; ++i) {
+        if (*i < *first) tinystl::pop_heap_aux(first, middle, i, *i, distance_type(first));
+    }
+    tinystl::sort_heap(first, middle);
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class RandomAccessIterator, class Compare>
+void partial_sort(RandomAccessIterator first, RandomAccessIterator middle, 
+                  RandomAccessIterator last, Compare comp) {
+    tinystl::make_heap(first, middle, comp);
+    for (auto i = middle; i != last; ++i) {
+        if (comp(*i, *first)) tinystl::pop_heap_aux(first, middle, i, *i, distance_type(first), comp);
+    }
+    tinystl::sort_heap(first, middle, comp);
+}
+
 
 
 
