@@ -42,6 +42,21 @@ TEST(equal_range_test)
   EXPECT_EQ(p4.second, p3.second);
 }
 
+TEST(rotate_test)
+{
+  int arr1[] = { 1,2,3,4,5,6,7,8,9 };
+  int arr2[] = { 1,2,3,4,5,6,7,8,9 };
+  std::rotate(arr1, arr1 + 3, arr1 + 9);
+  tinystl::rotate(arr2, arr2 + 3, arr2 + 9);
+  EXPECT_CON_EQ(arr1, arr2);
+  std::rotate(arr1 + 3, arr1 + 5, arr1 + 9);
+  tinystl::rotate(arr2 + 3, arr2 + 5, arr2 + 9);
+  EXPECT_CON_EQ(arr1, arr2);
+  std::rotate(arr1, arr1 + 9, arr1 + 9);
+  tinystl::rotate(arr2, arr2 + 9, arr2 + 9);
+  EXPECT_CON_EQ(arr1, arr2);
+}
+
 }  // namespace algorithm_test
 
 #ifdef _MSC_VER

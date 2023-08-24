@@ -646,9 +646,11 @@ bool binary_search(ForwardIterator first, ForwardIterator last, const T& value, 
 // equal_range
 // 查找[first,last)区间中与 value 相等的元素所形成的区间，返回一对迭代器指向区间首尾
 // 第一个迭代器指向第一个不小于 value 的元素，第二个迭代器指向第一个大于 value 的元素
-// TODO: 我觉得直接调用 lbound 和 ubound 就可以了，为什么还要先找到中间元素呢
+// 我觉得直接调用 lbound 和 ubound 就可以了，为什么还要先找到中间元素呢
+// TODO: 讲解二分与这里的做法
 /*****************************************************************************************/
 
+/// @brief 查找[first,last)区间中与 value 相等的元素所形成的区间，返回一对迭代器指向区间首尾
 template <class ForwardIterator, class T>
 tinystl::pair<ForwardIterator, ForwardIterator>
 equal_range(ForwardIterator first, ForwardIterator last, const T& value) {
@@ -657,6 +659,7 @@ equal_range(ForwardIterator first, ForwardIterator last, const T& value) {
         tinystl::upper_bound(first, last, value));
 }
 
+/// @brief 重载版本使用函数对象 comp 代替比较操作
 template <class ForwardIterator, class T, class Compare>
 tinystl::pair<ForwardIterator, ForwardIterator>
 equal_range(ForwardIterator first, ForwardIterator last, const T& value, Compare comp) {
@@ -665,12 +668,368 @@ equal_range(ForwardIterator first, ForwardIterator last, const T& value, Compare
         tinystl::upper_bound(first, last, value, comp));
 }
 
+/*****************************************************************************************/
+// generate
+// 将函数对象 gen 的运算结果对[first, last)内的每个元素赋值
+/*****************************************************************************************/
+
+/// @brief 将函数对象 gen 的运算结果对[first, last)内的每个元素赋值
+template <class ForwardIterator, class Generator>
+void generator(ForwardIterator first, ForwardIterator last, Generator gen) {
+    for (; first != last; ++first) {
+        *first = gen();
+    }
+}
+
+/*****************************************************************************************/
+// generate_n
+// 用函数对象 gen 连续对 n 个元素赋值
+/*****************************************************************************************/
+
+/// @brief 用函数对象 gen 连续对 n 个元素赋值
+template <class ForwardIterator, class Size, class Generator>
+void generate_n(ForwardIterator first, Size n, Generator gen) {
+    for (; n > 0; --n, ++first) {
+        *first = gen();
+    }
+}
+
+/*****************************************************************************************/
+// includes
+// 判断序列一是否包含序列二，即序列二的元素是否全部出现在序列一中
+// 两个序列必须为有序序列
+/*****************************************************************************************/
+
+/// @brief 判断序列一是否包含序列二，即序列二的元素是否全部出现在序列一中
+template <class InputIterator1, class InputIterator2>
+bool includes(InputIterator1 first1, InputIterator1 last1, 
+              InputIterator2 first2, InputIterator2 last2) {
+    while (first1 != last1 && first2 != last2) {
+        if (*first2 < *first1) return false;
+        else if (*first1 < *first2) ++first1;
+        else ++first1, ++first2;
+    }
+    return first2 == last2;
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class InputIterator1, class InputIterator2, class Compare>
+bool includes(InputIterator1 first1, InputIterator1 last1, 
+              InputIterator2 first2, InputIterator2 last2, Compare comp) {
+    while (first1 != last1 && first2 != last2) {
+        if (comp(*first2, *first1)) return false;
+        else if (comp(*first1, *first2)) ++first1;
+        else ++first1, ++first2;
+    }
+    return first2 == last2;
+}
+
+/*****************************************************************************************/
+// is_heap
+// 检查[first, last)内的元素是否为一个堆，如果是，则返回 true
+// 默认为大根堆，如果想要检查小根堆，需要传入一个比较函数
+/*****************************************************************************************/
+
+/// @brief 检查[first, last)内的元素是否为一个堆，如果是，则返回 true
+template <class RandomAccessIterator>
+bool is_heap(RandomAccessIterator first, RandomAccessIterator last) {
+    auto n = last - first;
+    auto parent = 0;
+    for (auto child = 1; child < n; ++child) {
+        if (first[parent] < first[child]) return false;
+        if ((child & 1) == 0) ++parent;
+    }
+    return true;
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class RandomAccessIterator, class Compare>
+bool is_heap(RandomAccessIterator first, RandomAccessIterator last, Compare comp) {
+    auto n = last - first;
+    auto parent = 0;
+    for (auto child = 1; child < n; ++child) {
+        if (comp(first[parent], first[child])) return false;
+        if ((child & 1) == 0) ++parent;
+    }
+    return true;
+}
+
+/*****************************************************************************************/
+// is_sorted
+// 检查[first, last)内的元素是否升序，如果是升序，则返回 true
+/*****************************************************************************************/
+
+/// @brief 检查[first, last)内的元素是否升序，如果是升序，则返回 true
+template <class ForwardIterator>
+bool is_sorted(ForwardIterator first, ForwardIterator last) {
+    if (first == last) return true;
+    auto next = first;
+    while (++next != last) {
+        if (*next < *first) return false;
+        first = next;
+    }
+    return true;
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class ForwardIterator, class Compare>
+bool is_sorted(ForwardIterator first, ForwardIterator last, Compare comp) {
+    if (first == last) return true;
+    auto next = first;
+    while (++next != last) {
+        if (comp(*next, *first)) return false;
+        first = next;
+    }
+    return true;
+}
+
+/*****************************************************************************************/
+// median
+// 找出三个值的中间值
+/*****************************************************************************************/
+
+/// @brief 找出三个值的中间值 
+template <class T>
+const T& median(const T& left, const T& mid, const T& right) {
+    if (left < mid)
+        if (mid < right) return mid;          // left < mid < right
+        else if (left < right) return right;  // left < right <= mid
+        else return left;                     // right <= left < mid
+        
+    else if (left < right) return left;     // mid <= left < right
+    else if (mid < right) return right;     // mid < right <= left
+    else return mid;                        // right <= mid <= left
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class T, class Compared>
+const T& median(const T& left, const T& mid, const T& right, Compared comp) {
+    if (comp(left, mid))
+        if (comp(mid, right)) return mid;
+        else if (comp(left, right)) return right;
+        else return left;
+    else if (comp(left, right)) return left;
+    else if (comp(mid, right)) return right;
+    else return mid;
+}
+
+/*****************************************************************************************/
+// max_element
+// 返回一个迭代器，指向序列中最大的元素
+/*****************************************************************************************/
+
+/// @brief 返回一个迭代器，指向序列中最大的元素
+template <class ForwardIterator>
+ForwardIterator max_element(ForwardIterator first, ForwardIterator last) {
+    if (first == last) return first;
+    auto result = first;
+    while (++first != last) {
+        if (*result < *first) result = first;
+    }
+    return result;
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class ForwardIterator, class Compared>
+ForwardIterator max_element(ForwardIterator first, ForwardIterator last, Compared comp) {
+    if (first == last) return first;
+    auto result = first;
+    while (++first != last) {
+        if (comp(*result, *first)) result = first;
+    }
+    return result;
+}
+
+/*****************************************************************************************/
+// min_element
+// 返回一个迭代器，指向序列中最小的元素
+/*****************************************************************************************/
+
+/// @brief 返回一个迭代器，指向序列中最小的元素
+template <class ForwardIterator>
+ForwardIterator min_elememt(ForwardIterator first, ForwardIterator last) {
+    if (first == last) return first;
+    auto result = first;
+    while (++first != last) {
+        if (*first < *result) result = first;
+    }
+    return result;
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class ForwardIterator, class Compared>
+ForwardIterator min_elememt(ForwardIterator first, ForwardIterator last, Compared comp) {
+    if (first == last) return first;
+    auto result = first;
+    while (++first != last) {
+        if (comp(*first, *result)) result = first;
+    }
+    return result;
+}
+
+/*****************************************************************************************/
+// swap_ranges
+// 将 [first1, last1) 从 first2 开始，交换相同个数元素
+// 交换的区间长度必须相同，两个序列不能互相重叠，返回一个迭代器指向序列二最后一个被交换元素的下一位置
+/*****************************************************************************************/
+
+/// @brief 将 [first1, last1) 从 first2 开始，交换相同个数元素
+template <class ForwardIterator1, class ForwardIterator2>
+ForwardIterator2 swap_ranges(ForwardIterator1 first1, ForwardIterator1 last1, 
+                             ForwardIterator2 first2) {
+    for (; first1 != last1; ++first1, ++first2) {
+        tinystl::iter_swap(first1, first2);
+    }
+    return first2;
+}
+
+/*****************************************************************************************/
+// transform
+// 第一个版本以函数对象 unary_op 作用于[first, last)中的每个元素并将结果保存至 result 中
+// 第二个版本以函数对象 binary_op 作用于两个序列[first1, last1)、[first2, last2)的相同位置
+/*****************************************************************************************/
+
+/// @brief 以函数对象 unary_op 作用于[first, last)中的每个元素并将结果保存至 result 中
+template <class InputIterator, class OutputIterator, class UnaryOperation>
+OutputIterator transform(InputIterator first, InputIterator last, 
+                         OutputIterator result, UnaryOperation unary_op) {
+    for (; first != last; ++first, ++result) {
+        *result = unary_op(*first);
+    }
+    return result;
+}
+
+/// @brief 以函数对象 binary_op 作用于两个序列[first1, last1)、[first2, last2)的相同位置并将结果保存至 result 中
+template <class InputIterator1, class InputIterator2, class OutputIterator, class BinaryOperation>
+OutputIterator transform(InputIterator1 first1, InputIterator1 last1, 
+                         InputIterator2 first2, OutputIterator result, BinaryOperation binary_op) {
+    for (; first1 != last1; ++first1, ++first2, ++result) {
+        *result = binary_op(*first1, *first2);
+    }
+    return result;
+}
+
+/*****************************************************************************************/
+// remove_copy
+// 移除区间内与指定 value 相等的元素，并将结果复制到以 result 标示起始位置的容器上
+/*****************************************************************************************/
+
+template <class InputIterator, class OutputIterator, class T>
+OutputIterator remove_copy(InputIterator first, InputIterator last, 
+                           OutputIterator result, const T& value) {
+    for (; first != last; ++first) {
+        if (*first != value) *result++ = *first;
+    }
+    return result;
+}
+
+/*****************************************************************************************/
+// remove
+// 移除所有与指定 value 相等的元素
+// 实际的操作仅为将不与 value 相等的元素移动到前面，返回指向新的逻辑结尾的迭代器
+// 并不从容器中删除这些元素，所以 remove 和 remove_if 不适用于 array （因为 array 的大小固定）
+/*****************************************************************************************/
+
+/// @brief 移除所有与指定 value 相等的元素
+template <class ForwardIterator, class T>
+ForwardIterator remove(ForwardIterator first, ForwardIterator last, const T& value) {
+    first = tinystl::find(first, last, value);
+    auto next = first;
+    return first == last ? first : tinystl::remove_copy(++next, last, first, value);
+}
+
+/*****************************************************************************************/
+// remove_copy_if
+// 移除区间内所有令一元操作 unary_pred 为 true 的元素，并将结果复制到以 result 为起始位置的容器上
+/*****************************************************************************************/
+
+/// @brief 移除区间内所有令一元操作 unary_pred 为 true 的元素，并将结果复制到以 result 为起始位置的容器上 
+template <class InputIterator, class OutputIterator, class UnaryPredicate>
+OutputIterator remove_copy_if(InputIterator first, InputIterator last, 
+                              OutputIterator result, UnaryPredicate unary_pred) {
+    for (; first != last; ++first) {
+        if (!unary_pred(*first)) *result++ = *first;
+    }
+    return result;
+}
+
+/*****************************************************************************************/
+// remove_if
+// 移除区间内所有令一元操作 unary_pred 为 true 的元素
+/*****************************************************************************************/
+
+/// @brief 移除区间内所有令一元操作 unary_pred 为 true 的元素
+template <class ForwardIterator, class UnaryPredicate>
+ForwardIterator remove_if(ForwardIterator first, ForwardIterator last, UnaryPredicate unary_pred) {
+    first = tinystl::find_if(first, last, unary_pred);
+    auto next = first;
+    return first == last ? first : tinystl::remove_copy_if(++next, last, first, unary_pred);
+}
+
+/*****************************************************************************************/
+// replace
+// 将区间内所有的 old_value 都以 new_value 替代
+/*****************************************************************************************/
+
+/// @brief 将区间内所有的 old_value 都以 new_value 替代
+template <class ForwardIterator, class T>
+void replace(ForwardIterator first, ForwardIterator last, const T& old_value, const T& new_value) {
+    for (; first != last; ++first) {
+        if (*first == old_value) *first = new_value;
+    }
+}
+
+/*****************************************************************************************/
+// replace_copy
+// 行为与 replace 类似，不同的是将结果复制到 result 所指的容器中，原序列没有改变
+/*****************************************************************************************/
+
+/// @brief 行为与 replace 类似，不同的是将结果复制到 result 所指的容器中，原序列没有改变
+template <class InputIterator, class OutputIterator, class T>
+OutputIterator replace_copy(InputIterator first, InputIterator last, 
+                            OutputIterator result, const T& old_value, const T& new_value) {
+    for (; first != last; ++first, ++result) {
+        *result = *first == old_value ? new_value : *first;
+    }
+    return result;
+}
+
+/*****************************************************************************************/
+// replace_copy_if
+// 行为与 replace_if 类似，不同的是将结果复制到 result 所指的容器中，原序列没有改变
+/*****************************************************************************************/
+
+/// @brief 行为与 replace_if 类似，不同的是将结果复制到 result 所指的容器中，原序列没有改变
+template <class InputIterator, class OutputIterator, class UnaryPredicate, class T>
+OutputIterator replace_copy_if(InputIterator first, InputIterator last, 
+                               OutputIterator result, UnaryPredicate unary_pred, const T& new_value) {
+    for (; first != last; ++first, ++result) {
+        *result = unary_pred(*first) ? new_value : *first;
+    }
+    return result;
+}
+
+/*****************************************************************************************/
+// replace_if
+// 将区间内所有令一元操作 unary_pred 为 true 的元素都用 new_value 替代
+/*****************************************************************************************/
+
+/// @brief 将区间内所有令一元操作 unary_pred 为 true 的元素都用 new_value 替代
+template <class ForwardIterator, class UnaryPredicate, class T>
+void replace_if(ForwardIterator first, ForwardIterator last, 
+                UnaryPredicate unary_pred, const T& new_value) {
+    for (; first != last; ++first) {
+        if (unary_pred(*first)) *first = new_value;
+    }
+}
+
 
 /*****************************************************************************************/
 // reverse
 // 将[first, last)区间内的元素反转
 /*****************************************************************************************/
 
+/// @brief reverse 的 bidirectional_iterator_tag 版本
 template <class BidirectionalIterator>
 void reverse_dispatch(BidirectionalIterator first, BidirectionalIterator last, 
     bidirectional_iterator_tag) {
@@ -680,6 +1039,7 @@ void reverse_dispatch(BidirectionalIterator first, BidirectionalIterator last,
     }
 }
 
+/// @brief reverse 的 random_access_iterator_tag 版本 
 template <class RandomAccessIterator>
 void reverse_dispatch(RandomAccessIterator first, RandomAccessIterator last, 
     random_access_iterator_tag) {
@@ -688,12 +1048,114 @@ void reverse_dispatch(RandomAccessIterator first, RandomAccessIterator last,
     }
 }
 
+/// @brief 将[first, last)区间内的元素反转，根据迭代器类型调用不同版本的 reverse_dispatch
 template <class BidirectionalIterator>
 void reverse(BidirectionalIterator first, BidirectionalIterator last) {
     tinystl::reverse_dispatch(first, last, iterator_category(first));
 }
 
+/*****************************************************************************************/
+// reverse_copy
+// 行为与 reverse 类似，不同的是将结果复制到 result 所指容器中
+/*****************************************************************************************/
 
+/// @brief 行为与 reverse 类似，不同的是将结果复制到 result 所指容器中
+template <class BidirectionalIterator, class OutputIterator>
+OutputIterator reverse_copy(BidirectionalIterator first, BidirectionalIterator last, 
+                            OutputIterator result) {
+    while (first != last) {
+        --last;
+        *result++ = *last;
+    }
+    return result;
+}
+
+/*****************************************************************************************/
+// random_shuffle
+// 将[first, last)内的元素次序随机重排
+// 重载版本使用一个产生随机数的函数对象 rand
+/*****************************************************************************************/
+
+/// @brief 将[first, last)内的元素次序随机重排
+template <class RandomAccessIterator>
+void random_shuffle(RandomAccessIterator first, RandomAccessIterator last) {
+    if (first == last) return;
+    srand((unsigned)time(0));  // 产生随机数种子，以当前时间为种子，使每次运行结果随机
+    for (auto i = first + 1; i != last; ++i) {
+        tinystl::iter_swap(i, first + rand() % ((i - first) + 1));
+    }
+}
+
+/// @brief 重载版本使用一个产生随机数的函数对象 rand
+template <class RandomAccessIterator, class RandomNumberGenerator>
+void random_shuffle(RandomAccessIterator first, RandomAccessIterator last, 
+                    RandomNumberGenerator rand) {
+    if (first == last) return;
+    auto len = tinystl::distance(first, last);
+    for (auto i = first + 1; i != last; ++i) {
+        tinystl::iter_swap(i, first + (rand(i - first + 1) % len));
+    }
+}
+
+/*****************************************************************************************/
+// rotate
+// 将[first, middle)内的元素和 [middle, last)内的元素互换，可以交换两个长度不同的区间
+// 返回交换后 middle 的位置
+// STL 原始的实现太复杂了，这里使用 LeetCode 189 题的解法，翻转三次数组
+// https://leetcode.cn/problems/rotate-array/
+// 也不需要使用额外的空间，O(1) 空间复杂度，O(n) 时间复杂度
+// TODO:讲解
+/*****************************************************************************************/
+
+// template <class ForwardIterator>
+// ForwardIterator rotate_dispatch(ForwardIterator first, ForwardIterator middle, 
+//                                 ForwardIterator last, forward_iterator_tag) {
+//     auto new_middle = first;
+//     tinystl::advance(new_middle, last - middle);
+//     tinystl::reverse(first, last);
+//     tinystl::reverse(first, new_middle);
+//     tinystl::reverse(new_middle, last);
+//     return new_middle;
+// }
+
+// template <class BidirectionalIterator>
+// BidirectionalIterator rotate_dispatch(BidirectionalIterator first, BidirectionalIterator middle, 
+//                                       BidirectionalIterator last, bidirectional_iterator_tag) {
+//     auto new_middle = first;
+//     tinystl::advance(new_middle, last - middle);
+//     tinystl::reverse(first, last);
+//     tinystl::reverse(first, new_middle);
+//     tinystl::reverse(new_middle, last);
+//     return new_middle;
+// }
+
+
+// 使用三次翻转的方法后 rotate 就完全不需要根据迭代器来设计不同的实现，只需使用 reverse 的不同实现即可
+
+/// @brief 将[first, middle)内的元素和 [middle, last)内的元素互换，可以交换两个长度不同的区间
+template <class ForwardIterator>
+ForwardIterator rotate(ForwardIterator first, ForwardIterator middle, ForwardIterator last) {
+    auto new_middle = first;
+    tinystl::advance(new_middle, last - middle);
+    tinystl::reverse(first, last);
+    tinystl::reverse(first, new_middle);
+    tinystl::reverse(new_middle, last);
+    return new_middle;
+}
+
+/*****************************************************************************************/
+// rotate_copy
+// 行为与 rotate 类似，不同的是将结果复制到 result 所指的容器中
+/*****************************************************************************************/
+
+template <class ForwardIterator, class OutputIterator>
+ForwardIterator rotate_copy(ForwardIterator first, ForwardIterator middle, 
+                            ForwardIterator last, OutputIterator result) {
+    // 先拷贝 [middle, last) 的元素至 result
+    // 再拷贝 [first, middle) 的元素
+    // 相当于做了一次 rotate
+    return tinystl::copy(first, middle, tinystl::copy(middle, last, result));
+}
 
 /*****************************************************************************************/
 // is_permutation
@@ -771,6 +1233,140 @@ bool is_permutation(ForwardIter1 first1, ForwardIter1 last1,
     static_assert(std::is_same<v1, v2>::value, "the type should be same in tinystl::is_permutation");
     return is_permutation_aux(first1, last1, first2, last2, tinystl::equal_to<v1>());
 }
+
+/*****************************************************************************************/
+// next_permutation
+// 取得[first, last)所标示序列的下一个排列组合，如果没有下一个排序组合，返回 false，否则返回 true
+// 算法流程为：
+// 首先，从最尾端开始往前寻找两个相邻元素，令第一元素为 *i，第二元素为 *ii，且满足 *i < *ii。
+// 找到这样一组相邻元素后﹐再从最尾端开始往前检验，找出第一个大于 *i 的元素，令为 *j，将 i，j 元素对调，
+// 再将 ii之后的所有元素颠倒排列。此即所求之 “下一个” 排列组合。
+// TODO:讲解
+/*****************************************************************************************/
+
+/// @brief 取得[first, last)所标示序列的下一个排列组合，如果没有下一个排序组合，返回 false，否则返回 true
+template <class BidirectionalIterator>
+bool next_permutation(BidirectionalIterator first, BidirectionalIterator last) {
+    auto i = last;
+    if (first == last || first == --i) return false;
+    for (;;) {
+        auto ii = i;
+        if (*--i < *ii) {
+            auto j = last;
+            while (!(*i < *--j)) {}
+            tinystl::iter_swap(i, j);
+            tinystl::reverse(ii, last);
+            return true;
+        }
+        if (i == first) {
+            tinystl::reverse(first, last);
+            return false;
+        }
+    }
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class BidirectionalIterator, class Compare>
+bool next_permutation(BidirectionalIterator first, BidirectionalIterator last, Compare comp) {
+    auto i = last;
+    if (first == last || first == --i) return false;
+    for (;;) {
+        auto ii = i;
+        if (comp(*--i, *ii)) {
+            auto j = last;
+            while (!comp(*i, *--j)) {}
+            tinystl::iter_swap(i, j);
+            tinystl::reverse(ii, last);
+            return true;
+        }
+        if (i == first) {
+            tinystl::reverse(first, last);
+            return false;
+        }
+    }
+}
+
+/*****************************************************************************************/
+// prev_permutation
+// 取得[first, last)所标示序列的上一个排列组合，如果没有上一个排序组合，返回 false，否则返回 true
+/*****************************************************************************************/
+
+/// @brief 取得[first, last)所标示序列的上一个排列组合，如果没有上一个排序组合，返回 false，否则返回 true
+template <class BidirectionalIterator>
+bool prev_permutation(BidirectionalIterator first, BidirectionalIterator last) {
+    auto i = last;
+    if (first == last || first == --i) return false;
+    for (;;) {
+        auto ii = i;
+        // 找到第一对相邻元素，满足 *i > *ii
+        if (*ii < *--i) {
+            auto j = last;
+            while (!(*--j < *i)) {}
+            tinystl::iter_swap(i, j);    // 交换 i 和 j
+            tinystl::reverse(ii, last);  // 将 ii 之后的元素颠倒排列
+            return true;
+        }
+        if (i == first) {
+            tinystl::reverse(first, last);
+            return false;
+        }
+    }
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class BidirectionalIterator, class Compare>
+bool prev_permutation(BidirectionalIterator first, BidirectionalIterator last, Compare comp) {
+    auto i = last;
+    if (first == last || first == --i) return false;
+    for (;;) {
+        auto ii = i;
+        if (comp(*ii, *--i)) {
+            auto j = last;
+            while (!comp(*--j, *i)) {}
+            tinystl::iter_swap(i, j);
+            tinystl::reverse(ii, last);
+            return true;
+        }
+        if (i == first) {
+            tinystl::reverse(first, last);
+            return false;
+        }
+    }
+}
+
+/*****************************************************************************************/
+// merge
+// 要求两个序列有序
+// 将两个经过排序的集合 S1 和 S2 合并起来置于另一段空间，返回一个迭代器指向最后一个元素的下一位置
+/*****************************************************************************************/
+
+/// @brief 将两个经过排序的集合 S1 和 S2 合并起来置于另一段空间，返回一个迭代器指向最后一个元素的下一位置
+template <class InputIterator1, class InputIterator2, class OutputIterator>
+OutputIterator merge(InputIterator1 first1, InputIterator1 last1, 
+                     InputIterator2 first2, InputIterator2 last2, OutputIterator result) {
+    while (first1 != last1 && first2 != last2) {
+        if (*first2 < *first1) *result++ = *first2++;
+        else *result++ = *first1++;
+    }
+    return tinystl::copy(first2, last2, tinystl::copy(first1, last1, result));
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class InputIterator1, class InputIterator2, class OutputIterator, class Compare>
+OutputIterator merge(InputIterator1 first1, InputIterator1 last1, 
+                     InputIterator2 first2, InputIterator2 last2, OutputIterator result, Compare comp) {
+    while (first1 != last1 && first2 != last2) {
+        if (comp(*first2, *first1)) *result++ = *first2++;
+        else *result++ = *first1++;
+    }
+    return tinystl::copy(first2, last2, tinystl::copy(first1, last1, result));
+}
+
+/*****************************************************************************************/
+// inplace_merge
+// 把连接在一起的两个有序序列结合成单一序列并保持有序
+/*****************************************************************************************/
+
 
 
 }  // namespace tinystl
