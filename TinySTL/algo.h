@@ -13,7 +13,7 @@
 
 #include "algobase.h"
 #include "memory.h"
-// #include "heap_algo.h"
+#include "heap.h"
 #include "functional.h"
 
 namespace tinystl {
@@ -675,7 +675,7 @@ equal_range(ForwardIterator first, ForwardIterator last, const T& value, Compare
 
 /// @brief 将函数对象 gen 的运算结果对[first, last)内的每个元素赋值
 template <class ForwardIterator, class Generator>
-void generator(ForwardIterator first, ForwardIterator last, Generator gen) {
+void generate(ForwardIterator first, ForwardIterator last, Generator gen) {
     for (; first != last; ++first) {
         *first = gen();
     }
@@ -788,7 +788,7 @@ bool is_sorted(ForwardIterator first, ForwardIterator last, Compare comp) {
 // 找出三个值的中间值
 /*****************************************************************************************/
 
-/// @brief 找出三个值的中间值 
+/// @brief 找出三个值的中间值，主要用于快排中的 pivot 选择
 template <class T>
 const T& median(const T& left, const T& mid, const T& right) {
     if (left < mid)
@@ -1654,6 +1654,7 @@ void inplace_merge(BidirectionalIterator first, BidirectionalIterator middle,
 /*****************************************************************************************/
 
 /// @brief 对整个序列做部分排序，保证 [first, middle) 内的元素有序且小于 [middle, last) 内的元素
+/// 内部使用堆排序
 template <class RandomAccessIterator>
 void partial_sort(RandomAccessIterator first, RandomAccessIterator middle, 
                   RandomAccessIterator last) {
@@ -1675,8 +1676,466 @@ void partial_sort(RandomAccessIterator first, RandomAccessIterator middle,
     tinystl::sort_heap(first, middle, comp);
 }
 
+/*****************************************************************************************/
+// partial_sort_copy
+// 行为与 partial_sort 类似，不同的是把排序结果复制到 result 容器中
+/*****************************************************************************************/
 
+template <class InputIterator, class RandomAccessIterator, class Distance>
+RandomAccessIterator psort_copy_aux(InputIterator first, InputIterator last, 
+                                    RandomAccessIterator result_first, RandomAccessIterator result_last, 
+                                    Distance*) {
+    if (result_first == result_last) return result_last;
+    auto result_iter = result_first;
+    while (first != last && result_iter != result_last) {
+        *result_iter++ = *first++;
+    }
+    tinystl::make_heap(result_first, result_iter);
+    // 此时 first 已经移动到了后半段的位置
+    while (first != last) {
+        if (*first < *result_first) tinystl::adjust_heap(
+            result_first, static_cast<Distance>(0), 
+            result_iter - result_first, *first);
+        ++first;
+    }
+    tinystl::sort_heap(result_first, result_iter);
+    return result_iter;
+}
 
+/// @brief 将 [first, last) 中前 n 个最小元素复制到 [result_first, result_last) 中
+template <class InputIterator, class RandomAccessIterator>
+RandomAccessIterator partial_sort_copy(InputIterator first, InputIterator last, 
+                                       RandomAccessIterator result_first, 
+                                       RandomAccessIterator result_last) {
+    return tinystl::psort_copy_aux(first, last, result_first, result_last, distance_type(result_first));
+}
+
+template <class InputIterator, class RandomAccessIterator, class Distance, class Compare>
+RandomAccessIterator psort_copy_aux(InputIterator first, InputIterator last, 
+                                    RandomAccessIterator result_first, RandomAccessIterator result_last, 
+                                    Distance*, Compare comp) {
+    if (result_first == result_last) return result_last;
+    auto result_iter = result_first;
+    while (first != last && result_iter != result_last) {
+        *result_iter++ = *first++;
+    }
+    tinystl::make_heap(result_first, result_iter, comp);
+    // 此时 first 已经移动到了后半段的位置
+    while (first != last) {
+        if (comp(*first, *result_first)) tinystl::adjust_heap(
+            result_first, static_cast<Distance>(0), 
+            result_iter - result_first, *first, comp);
+        ++first;
+    }
+    tinystl::sort_heap(result_first, result_iter, comp);
+    return result_iter;
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class InputIterator, class RandomAccessIterator, class Compare>
+RandomAccessIterator partial_sort_copy(InputIterator first, InputIterator last, 
+                                       RandomAccessIterator result_first, 
+                                       RandomAccessIterator result_last, Compare comp) {
+    return tinystl::psort_copy_aux(first, last, result_first, result_last, distance_type(result_first), comp);
+}
+
+/*****************************************************************************************/
+// partition
+// 对区间内的元素重排，被一元条件运算判定为 true 的元素会放到区间的前段
+// 该函数不保证元素的原始相对位置
+/*****************************************************************************************/
+
+/// @brief 对区间内的元素重排，被一元条件运算判定为 true 的元素会放到区间的前段
+template <class BidirectionalIterator, class UnaryPredicate>
+BidirectionalIterator partition(BidirectionalIterator first, BidirectionalIterator last, 
+                                UnaryPredicate pred) {
+    while (true) {
+        // 找到一个不满足 pred 的位于前端的元素
+        while (first != last && pred(*first)) ++first;
+        if (first == last) break;
+        --last;
+        // 找到一个满足 pred 的位于后端的元素
+        while (first != last && !pred(*last)) --last;
+        if (first == last) break;
+        // 交换两个元素
+        tinystl::iter_swap(first, last);
+        ++first;
+    }
+    return first;
+}
+
+/*****************************************************************************************/
+// partition_copy
+// 行为与 partition 类似，不同的是，将被一元操作符判定为 true 的放到 result_true 的输出区间
+// 其余放到 result_false 的输出区间，并返回一个 tinystl::pair 指向这两个区间的尾部
+/*****************************************************************************************/
+
+/// @brief 将被一元操作符判定为 true 的放到 result_true 的输出区间，
+/// 其余放到 result_false 的输出区间，并返回一个 tinystl::pair 指向这两个区间的尾部
+template <class InputIterator, class OutputIterator1, class OutputIterator2, class UnaryPredicate>
+tinystl::pair<OutputIterator1, OutputIterator2>
+partition_copy(InputIterator first, InputIterator last, OutputIterator1 result_true, 
+               OutputIterator2 result_false, UnaryPredicate pred) {
+    for (; first != last; ++first) {
+        if (pred(*first)) *result_true++ = *first;
+        else *result_false++ = *first;
+    }
+    return tinystl::pair<OutputIterator1, OutputIterator2>(result_true, result_false);
+}
+
+/*****************************************************************************************/
+// sort
+// 将[first, last)内的元素以递增的方式排序
+// 使用 sort 算法的迭代器必须为 random_access_iterator
+// TODO: 讲解
+/*****************************************************************************************/
+constexpr static size_t kThreshold = 32;  // 小型区间的大小，在这个大小内采用插入排序
+
+/// @brief 找出 lgk <= n 的 k 的最大值，用于控制分割恶化的情况
+template <class Size>
+Size slg2(Size n) {
+    Size k;
+    for (k = 0; n > 1; n >>= 1) ++k;
+    return k;
+}
+
+// unchecked 表示不经过严格的边界检查，一般在已经知道区间合法的情况下使用
+// 但好处是可以减少一些不必要的边界检查，提高效率
+
+/// @brief 将 [first, last) 范围内小于 pivot 的元素放到前面，大于 pivot 的元素放到后面
+template <class RandomAccessIterator, class T>
+RandomAccessIterator unchecked_partition(RandomAccessIterator first, RandomAccessIterator last, 
+                                         const T& pivot) {
+    while (true) {
+        while (*first < pivot) ++first;
+        --last;
+        while (pivot < *last) --last;
+        if (!(first < last)) return first;
+        tinystl::iter_swap(first, last);
+        ++first;
+    }
+}
+
+/// @brief 内省式排序，先进行 quick sort，当分割行为有恶化倾向时，改用 heap sort
+template <class RandomAccessIterator, class Size>
+void intro_sort(RandomAccessIterator first, RandomAccessIterator last, Size depth_limit) {
+    while (last - first > static_cast<Size>(kThreshold)) {
+        // 到达最大分割深度限制，使用 heap_sort
+        if (depth_limit == 0) {
+            tinystl::partial_sort(first, last, last);
+            return;
+        }
+        --depth_limit;
+        // 取三点中值作为 pivot
+        auto mid = tinystl::median(*(first), *(first + (last - first) / 2), *(last - 1));
+        auto cut = tinystl::unchecked_partition(first, last, mid);
+        tinystl::intro_sort(cut, last, depth_limit);  // 对后半段递归
+        last = cut;  // 更新 last，持续对前半段进行分割
+    }
+}
+
+/// @brief 插入排序辅助函数，翻转 last 之前的逆转对
+template <class RandomAccessIterator, class T>
+void unchecked_linear_insert(RandomAccessIterator last, const T& value) {
+    auto next = last;
+    --next;
+    while (value < *next) {
+        *last = *next;
+        last = next;
+        --next;
+    }
+    *last = value;
+}
+
+/// @brief 插入排序函数
+template <class RandomAccessIterator>
+void unchecked_insertion_sort(RandomAccessIterator first, RandomAccessIterator last) {
+    // 从 first + 1 开始排序
+    for (auto i = first; i != last; ++i) {
+        tinystl::unchecked_linear_insert(i, *i);
+    }
+}
+
+/// @brief 插入排序函数
+template <class RandomAccessIterator>
+void insertion_sort(RandomAccessIterator first, RandomAccessIterator last) {
+    if (first == last) return;
+    for (auto i = first + 1; i != last; ++i) {
+        auto value = *i;
+        // 如果 value 比 first 还小，就将 first 后移，然后将 value 放到 first 处
+        if (value < *first) {
+            tinystl::copy_backward(first, i, i + 1);
+            *first = value;
+        }
+        // 这里保证 value 的值一定是小于等于 *first 的，所以可以直接调用 unchecked_linear_insert
+        else {
+            tinystl::unchecked_linear_insert(i, value);
+        }
+    }
+}
+
+/// @brief 插入排序函数
+template <class RandomAccessIterator>
+void final_insertion_sort(RandomAccessIterator first, RandomAccessIterator last) {
+    // 如果排序区间长度大于 kThreshold，就对分别对前后两个区间进行插入排序
+    // 之所以分成两个区间是因为要保证最小元素在数组边缘，这样才能减少一个判断
+    if (last - first > static_cast<ptrdiff_t>(kThreshold)) {
+        // 由于 intro_sort 以 kThreshold 为界限，因此最小元素一定在前 kThreshold 个元素中
+        tinystl::insertion_sort(first, first + static_cast<ptrdiff_t>(kThreshold));
+        tinystl::unchecked_insertion_sort(first + static_cast<ptrdiff_t>(kThreshold), last);
+    }
+    else {
+        tinystl::insertion_sort(first, last);
+    }
+}
+
+/// @brief 对 [first, last) 进行排序，先进行 intro_sort，将区间划分为一个个小区间，再对整体使用插入排序
+template <class RandomAccessIterator>
+void sort(RandomAccessIterator first, RandomAccessIterator last) {
+    if (first != last) {
+        tinystl::intro_sort(first, last, slg2(last - first) * 2);
+        tinystl::final_insertion_sort(first, last);
+    }
+}
+
+// =========================== 重载版本使用 comp 代替比较操作 ============================= //
+
+/// @brief 将 [first, last) 范围内小于 pivot 的元素放到前面，大于 pivot 的元素放到后面
+template <class RandomAccessIterator, class T, class Compare>
+RandomAccessIterator unchecked_partition(RandomAccessIterator first, RandomAccessIterator last, 
+                                         const T& pivot, Compare comp) {
+    while (true) {
+        while (comp(*first, pivot)) ++first;
+        --last;
+        while (comp(pivot, *last)) --last;
+        if (!(first < last)) return first;  // 越界了就返回
+        tinystl::iter_swap(first, last);
+        ++first;
+    }
+}
+
+/// @brief 内省式排序，先进行 quick sort，当分割行为有恶化倾向时，改用 heap sort
+template <class RandomAccessIterator, class Size, class Compare>
+void intro_sort(RandomAccessIterator first, RandomAccessIterator last, 
+                Size depth_limit, Compare comp) {
+    while (last - first > static_cast<ptrdiff_t>(kThreshold)) {
+        // 到达最大分割深度限制，使用 heap_sort
+        if (depth_limit == 0) {
+            tinystl::partial_sort(first, last, last, comp);
+            return;
+        }
+        --depth_limit;
+        // 取三点中值作为 pivot
+        auto mid = tinystl::median(*(first), *(first + (last - first) / 2), *(last - 1), comp);
+        auto cut = tinystl::unchecked_partition(first, last, mid, comp);
+        tinystl::intro_sort(cut, last, depth_limit, comp);  // 对后半段递归
+        last = cut;  // 更新 last，持续对前半段进行分割
+    }
+}
+
+/// @brief 插入排序辅助函数，翻转 last 之前的逆转对
+template <class RandomAccessIterator, class T, class Compare>
+void unchecked_linear_insert(RandomAccessIterator last, const T& value, Compare comp) {
+    auto next = last;
+    --next;
+    // 从尾部开始寻找第一个可插入位置
+    while (comp(value, *next)) {
+        *last = *next;
+        last = next;
+        --next;
+    }
+    *last = value;
+}
+
+/// @brief 插入排序函数 
+template <class RandomAccessIterator, class Compare>
+void unchecked_insertion_sort(RandomAccessIterator first, RandomAccessIterator last, 
+                                Compare comp) {
+    // 从 first + 1 开始排序
+    for (auto i = first; i != last; ++i) {
+        tinystl::unchecked_linear_insert(i, *i, comp);
+    }
+}
+
+/// @brief 插入排序函数
+template <class RandomAccessIterator, class Compare>
+void insertion_sort(RandomAccessIterator first, RandomAccessIterator last, Compare comp) {
+    if (first == last) return;
+    for (auto i = first + 1; i != last; ++i) {
+        auto value = *i;
+        // 如果 value 比 first 还小，就将 first 后移，然后将 value 放到 first 处
+        if (comp(value, *first)) {
+            tinystl::copy_backward(first, i, i + 1);
+            *first = value;
+        }
+        // 这里保证 value 的值一定是小于等于 *first 的，所以可以直接调用 unchecked_linear_insert
+        else {
+            tinystl::unchecked_linear_insert(i, value, comp);
+        }
+    }
+}
+
+/// @brief 最终的插入排序函数
+template <class RandomAccessIterator, class Compare>
+void final_insertion_sort(RandomAccessIterator first, RandomAccessIterator last, Compare comp) {
+    // 如果排序区间长度大于 kThreshold，就对分别对前后两个区间进行插入排序
+    // 之所以分成两个区间是因为要保证最小元素在数组边缘，这样才能减少一个判断
+    if (last - first > static_cast<ptrdiff_t>(kThreshold)) {
+        // 由于 intro_sort 以 kThreshold 为界限，因此最小元素一定在前 kThreshold 个元素中
+        tinystl::insertion_sort(first, first + static_cast<ptrdiff_t>(kThreshold), comp);
+        tinystl::unchecked_insertion_sort(first + static_cast<ptrdiff_t>(kThreshold), last, comp);
+    }
+    else {
+        tinystl::insertion_sort(first, last, comp);
+    }
+}
+
+/// @brief 对 [first, last) 进行排序，先进行 intro_sort，将区间划分为一个个小区间，再对整体使用插入排序
+template <class RandomAccessIterator, class Compare>
+void sort(RandomAccessIterator first, RandomAccessIterator last, Compare comp) {
+    if (first != last) {
+        tinystl::intro_sort(first, last, slg2(last - first) * 2, comp);
+        tinystl::final_insertion_sort(first, last, comp);
+    }
+}
+
+/*****************************************************************************************/
+// nth_element
+// 对序列重排，使得所有小于第 n 个元素的元素出现在它的前面，大于它的出现在它的后面
+// 思路：
+// 1. 选取三点中值作为 pivot，对序列进行分割
+// 2. 若 nth 元素落在分割点左侧，对左侧序列递归调用 nth_element，否则对右侧序列递归调用 nth_element
+// 3. 重复上述过程，直到分割区间长度小于等于 3，然后对这个区间进行插入排序
+// TODO: 讲解
+/*****************************************************************************************/
+
+/// @brief 对序列重排，使得所有小于第 n 个元素的元素出现在它的前面，大于它的出现在它的后面
+template <class RandomAccessIterator>
+void nth_element(RandomAccessIterator first, RandomAccessIterator nth, RandomAccessIterator last) {
+    if (nth == last) return;
+    while (last - first > 3) {
+        // 选取三点中值作为 pivot 进行分割
+        auto cut = tinystl::unchecked_partition(first, last, 
+            tinystl::median(*first, *(first + (last - first) / 2), *(last - 1)));
+        // nth 元素落在分割点右侧，对右侧序列递归调用 nth_element
+        if (cut <= nth) first = cut;
+        // nth 元素落在分割点左侧，对左侧序列递归调用 nth_element
+        else last = cut;
+    }
+    // 对分割区间进行插入排序
+    tinystl::insertion_sort(first, last);
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class RandomAccessIterator, class Compare>
+void nth_element(RandomAccessIterator first, RandomAccessIterator nth, 
+                 RandomAccessIterator last, Compare comp) {
+    if (nth == last) return;
+    while (last - first > 3) {
+        // 选取三点中值作为 pivot 进行分割
+        auto cut = tinystl::unchecked_partition(first, last, 
+            tinystl::median(*first, *(first + (last - first) / 2), *(last - 1), comp), comp);
+        // nth 元素落在分割点右侧，对右侧序列递归调用 nth_element
+        if (cut <= nth) first = cut;
+        // nth 元素落在分割点左侧，对左侧序列递归调用 nth_element
+        else last = cut;
+    }
+    // 对分割区间进行插入排序
+    tinystl::insertion_sort(first, last, comp);
+}
+
+/*****************************************************************************************/
+// unique_copy
+// 从[first, last)中将元素复制到 result 上，序列必须有序，如果有重复的元素，只会复制一次
+/*****************************************************************************************/
+
+/// @brief unique_copy 的 forward_iterator_tag 版本
+template <class InputIterator, class ForwardIterator>
+ForwardIterator unique_copy_dispatch(InputIterator first, InputIterator last, 
+                                     ForwardIterator result, forward_iterator_tag) {
+    *result = *first;
+    while (++first != last) {
+        if (*result != *first) *++result = *first;
+    }
+    return ++result;
+}
+
+/// @brief unique_copy_dispatch 的 output_iterator_tag 版本
+// 由于 output iterator 只能进行只读操作，所以不能有 *result != *first 这样的判断
+template <class InputIterator, class OutputIterator>
+OutputIterator unique_copy_dispatch(InputIterator first, InputIterator last, 
+                                    OutputIterator result, output_iterator_tag) {
+    auto value = *first;
+    *result = value;
+    while (++first != last) {
+        if (value != *first) {
+            value = *first;
+            *++result = value;
+        }
+    }
+    return ++result;
+}
+
+/// @brief 从[first, last)中将元素复制到 result 上，序列必须有序，如果有重复的元素，只会复制一次 
+template <class InputIterator, class OutputIterator>
+OutputIterator unique_copy(InputIterator first, InputIterator last, OutputIterator result) {
+    if (first == last) return result;
+    return tinystl::unique_copy_dispatch(first, last, result, iterator_category(result));
+}
+
+// ================================ 重载版本使用函数对象 comp ============================== //
+
+/// @brief unique_copy 的 forward_iterator_tag 版本
+template <class InputIterator, class ForwardIterator, class Compare>
+ForwardIterator unique_copy_dispatch(InputIterator first, InputIterator last, 
+                                     ForwardIterator result, forward_iterator_tag, Compare comp) {
+    *result = *first;
+    while (++first != last) {
+        if (!comp(*result, *first)) *++result = *first;
+    }
+    return ++result;
+}
+
+/// @brief unique_copy_dispatch 的 output_iterator_tag 版本
+template <class InputIterator, class OutputIterator, class Compare>
+OutputIterator unique_copy_dispatch(InputIterator first, InputIterator last, 
+                                    OutputIterator result, output_iterator_tag, Compare comp) {
+    auto value = *first;
+    *result = value;
+    while (++first != last) {
+        if (!comp(value, *first)) {
+            value = *first;
+            *++result = value;
+        }
+    }
+    return ++result;
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class InputIterator, class OutputIterator, class Compare>
+OutputIterator unique_copy(InputIterator first, InputIterator last, OutputIterator result, Compare comp) {
+    if (first == last) return result;
+    return tinystl::unique_copy_dispatch(first, last, result, iterator_category(result), comp);
+}
+
+/*****************************************************************************************/
+// unique
+// 移除[first, last)内重复的元素，序列必须有序，和 remove 类似，它也不能真正的删除重复元素
+/*****************************************************************************************/
+
+/// @brief 移除[first, last)内重复的元素，实际只是将重复的元素移动到后面，返回一个迭代器指向不重复序列的尾部
+template <class ForwardIterator>
+ForwardIterator unique(ForwardIterator first, ForwardIterator last) {
+    first = tinystl::adjacent_find(first, last);
+    return tinystl::unique_copy(first, last, first);
+}
+
+/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class ForwardIterator, class Compare>
+ForwardIterator unique(ForwardIterator first, ForwardIterator last, Compare comp) {
+    first = tinystl::adjacent_find(first, last, comp);
+    return tinystl::unique_copy(first, last, first, comp);
+}
 
 }  // namespace tinystl
 

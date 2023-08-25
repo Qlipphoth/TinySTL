@@ -89,7 +89,7 @@ void adjust_heap(RandomIterator first, Distance holeIndex, Distance len, T value
     tinystl::push_heap_aux(first, holeIndex, topIndex, value);
 }
 
-template <class RandomIterator, class Distance, class T>
+template <class RandomIterator, class T, class Distance>
 void pop_heap_aux(RandomIterator first, RandomIterator last, RandomIterator result, T value, Distance*) {
     // 先将首值调至尾节点，然后调整[first, last - 1)使之重新成为一个 max-heap
     *result = *first;
@@ -122,7 +122,7 @@ void adjust_heap(RandomIterator first, Distance holeIndex, Distance len, T value
     tinystl::push_heap_aux(first, holeIndex, topIndex, value, comp);
 }
 
-template <class RandomIterator, class Distance, class T, class Compared>
+template <class RandomIterator, class T, class Distance, class Compared>
 void pop_heap_aux(RandomIterator first, RandomIterator last, RandomIterator result, 
     T value, Distance*, Compared comp) {
     // 先将首值调至尾节点，然后调整[first, last - 1)使之重新成为一个 max-heap
@@ -176,7 +176,7 @@ void make_heap_aux(RandomIterator first, RandomIterator last, Distance*) {
 
 template <class RandomIterator>
 void make_heap(RandomIterator first, RandomIterator last) {
-    tinystl::make_heap_aux(first, last - first, distance_type(first));
+    tinystl::make_heap_aux(first, last, distance_type(first));
 }
 
 template <class RandomIterator, class Distance, class Compared>
