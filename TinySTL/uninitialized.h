@@ -179,7 +179,7 @@ template <class ForwardIterator, class Size, class T>
 ForwardIterator uninitialized_fill_n(ForwardIterator first, Size n, const T& value) {
     return tinystl::__uninitialized_fill_n(first, n, value, 
         std::is_trivially_copy_assignable<typename iterator_traits<ForwardIterator>::value_type>{});
-    }
+}
 
 
 /*****************************************************************************************/

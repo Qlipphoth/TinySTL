@@ -41,6 +41,7 @@ public:
     typedef typename allocator_type::size_type            size_type;
     typedef typename allocator_type::difference_type      difference_type;
 
+    // vector 的迭代器是普通指针
     typedef value_type*                                   iterator;
     typedef const value_type*                             const_iterator;
     typedef tinystl::reverse_iterator<iterator>           reverse_iterator;
@@ -447,10 +448,12 @@ void vector<T>::emplace_back(Args&& ...args) {
 /// @param value  元素的值
 template <class T>
 void vector<T>::push_back(const value_type& value) {
+    // 如果空间足够就直接构造元素
     if (end_ != cap_) {
         data_allocator::construct(tinystl::address_of(*end_), value);
         ++end_;
     }
+    // 否则重新分配内存，并构造元素
     else {
         reallocate_insert(end_, value);
     }
@@ -471,8 +474,8 @@ void vector<T>::pop_back() {
 /// @param value  元素的值
 /// @return  返回指向新构造元素的迭代器
 template <class T>
-typename vector<T>::iterator vector<T>::insert(
-    const_iterator pos, const value_type& value) {
+typename vector<T>::iterator vector<T>::insert(const_iterator pos, const value_type& value) {
+    // 确保 pos 在 [begin(), end()) 内
     TINYSTL_DEBUG(pos >= begin() && pos <= end());
     iterator xpos = const_cast<iterator>(pos);
     const size_type n = xpos - begin_;
@@ -484,15 +487,18 @@ typename vector<T>::iterator vector<T>::insert(
     // 构造位置不为 end_，则需要移动元素
     else if (end_ != cap_) {
         auto new_end = end_;
-        data_allocator::construct(tinystl::address_of(*end_), 
-            *(end_ - 1));
+        // 在 end_ 处构造元素
+        data_allocator::construct(tinystl::address_of(*end_), *(end_ - 1));
         ++new_end;
         auto value_copy = value;  // 避免元素因以下复制操作而被改变
+        // 将 [xpos, end_ - 1) 的元素向后移动一位
         tinystl::copy_backward(xpos, end_ - 1, end_);
+        // 在 xpos 处构造元素
         *xpos = tinystl::move(value_copy);
+        // 更新 end_ 的位置
         end_ = new_end;
     }
-    // 构造位置为 end_，但是空间已满，则需要重新分配内存
+    // 空间已满，则需要重新分配内存并构造元素
     else {
         reallocate_insert(xpos, value);
     }
@@ -505,10 +511,14 @@ typename vector<T>::iterator vector<T>::insert(
 /// @return  返回指向被删除元素的下一个元素的迭代器
 template <class T>
 typename vector<T>::iterator vector<T>::erase(const_iterator pos) {
+    // 确保 pos 在 [begin(), end()) 内
     TINYSTL_DEBUG(pos >= begin() && pos < end());
     iterator xpos = begin_ + (pos - begin());
+    // 将 [xpos + 1, end_) 的元素向前移动一位
     tinystl::move(xpos + 1, end_, xpos);
+    // 销毁 end_ - 1处的元素
     data_allocator::destroy(end_ - 1);
+    // 更新 end_ 的位置
     --end_;
     return xpos;
 }
@@ -517,14 +527,17 @@ typename vector<T>::iterator vector<T>::erase(const_iterator pos) {
 /// @tparam T  元素类型
 /// @param first  删除区间的起始位置
 /// @param last  删除区间的终止位置
-/// @return  返回指向被删除元素的下一个元素的迭代器
+/// @return  返回指向被删除元素（区间）的下一个元素的迭代器
 template <class T>
-typename vector<T>::iterator vector<T>::erase(
-    const_iterator first, const_iterator last) {
+typename vector<T>::iterator vector<T>::erase(const_iterator first, const_iterator last) {
+    // 确保 first 和 last 在 [begin(), end()) 内，且 first 不大于 last
     TINYSTL_DEBUG(first >= begin() && first <= end() && !(last < first));
     const auto n = first - begin();
     iterator r = begin_ + (first - begin());
+    // tinystl::move(r + (last - first), end_, r) 将被删除区间后面的元素向前移动，返回移动后的尾部位置
+    // destroy(pos, end_) 销毁 [pos, end_) 区间上的元素
     data_allocator::destroy(tinystl::move(r + (last - first), end_, r), end_);
+    // 更新 end_ 的位置
     end_ = end_ - (last - first);
     return begin_ + n;
 }
@@ -640,6 +653,7 @@ typename vector<T>::size_type vector<T>::get_new_cap(size_type add_size) {
         return old_size + add_size > max_size() - 16 ? 
             old_size + add_size : old_size + add_size + 16;
     }
+    // 每一次默认增加 1.5 倍
     const auto new_size = old_size == 0 ? 
         tinystl::max(add_size, static_cast<size_type>(16)) : 
         tinystl::max(old_size + old_size / 2, old_size + add_size);
@@ -744,16 +758,21 @@ void vector<T>::reallocate_insert(iterator pos, const value_type& value) {
     auto new_end = new_begin;
     const value_type& value_copy = value;
     try {
+        // 将 pos 之前的元素移动到新的位置
         new_end = tinystl::uninitialized_move(begin_, pos, new_begin);
+        // 在 pos 处构造元素
         data_allocator::construct(tinystl::address_of(*new_end), value_copy);
         ++new_end;
+        // 将 pos 之后的元素移动到新的位置
         new_end = tinystl::uninitialized_move(pos, end_, new_end);
     }
     catch (...) {
         data_allocator::deallocate(new_begin, new_size);
         throw;
     }
-    destroy_and_recover(begin_, end_, cap_ - begin_);  // 回收内存
+    // 回收旧的内存
+    destroy_and_recover(begin_, end_, cap_ - begin_);
+    // 重新设置迭代器
     begin_ = new_begin;
     end_ = new_end;
     cap_ = new_begin + new_size;
