@@ -37,24 +37,24 @@ void construct(Ty* ptr, Args&&... args) {
 // =================================== destroy =================================== //
 // 负责对象的析构
 
-template <class Ty>
 // 平凡析构，不做任何处理
+template <class Ty>
 void destroy_one(Ty*, std::true_type) {}
 
-template <class Ty>
 // 非平凡析构，调用对象的析构函数
+template <class Ty>
 void destroy_one(Ty* pointer, std::false_type) {
     if (pointer != nullptr) {
         pointer->~Ty();
     }
 }
 
+// 平凡析构，不做任何处理
 template <class ForwardIterator>
-// 也是平凡析构，不做任何处理
 void destroy_cat(ForwardIterator, ForwardIterator, std::true_type) {}
 
-template <class ForwardIterator>
 // 非平凡析构，调用对象的析构函数
+template <class ForwardIterator>
 void destroy_cat(ForwardIterator first, ForwardIterator last, std::false_type) {
     for (; first != last; ++first) {
         destroy(&*first);

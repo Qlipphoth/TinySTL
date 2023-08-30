@@ -118,7 +118,7 @@ struct list_iterator : public tinystl::iterator<tinystl::bidirectional_iterator_
     // 重载操作符
 
     reference operator*() const { return node_->as_node()->data; }
-    pointer  operator->() const { return &(operator*()); }  // TODO: 为什么要这样做
+    pointer  operator->() const { return &(operator*()); }
 
     self& operator++() {
         TINYSTL_DEBUG(node_ != nullptr);
@@ -769,7 +769,7 @@ void list<T>::reverse() noexcept {
     auto e = end();
     while (i.node_ != e.node_) {
         tinystl::swap(i.node_->prev, i.node_->next);
-        i.node_ = i.node_->prev;  // TODO: why?
+        i.node_ = i.node_->prev;
     }
     tinystl::swap(e.node_->prev, e.node_->next);
 }
