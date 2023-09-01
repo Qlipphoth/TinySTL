@@ -481,6 +481,8 @@ public: // 调整元素容器相关操作
 
 public:  // list 相关操作
 
+    void transfer(const_iterator pos, const_iterator first, const_iterator last);
+
     void splice(const_iterator pos, list& x);
     void splice(const_iterator pos, list& x, const_iterator it);
     void splice(const_iterator pos, list& x, const_iterator first, const_iterator last);
@@ -502,10 +504,10 @@ public:  // list 相关操作
     template <class Compare>
     void merge(list& x, Compare comp);
 
-    void sort() { list_sort(begin(), end(), size(), tinystl::less<T>()); }
+    void sort() { list_sort(tinystl::less<T>()); }
 
     template <class Compare>
-    void sort(Compare comp) { list_sort(begin(), end(), size(), comp); }
+    void sort(Compare comp) { list_sort(comp); }
 
     void reverse() noexcept;
 
@@ -550,7 +552,7 @@ private:  // 辅助函数
     // sort
 
     template <class Compare>
-    iterator list_sort(iterator first, iterator last, size_type n, Compare comp);
+    void list_sort(Compare comp);
 
 };
 
@@ -626,6 +628,19 @@ void list<T>::resize(size_type new_size, const value_type& value) {
 
 }
 
+template <class T>
+void list<T>::transfer(const_iterator pos, const_iterator first, const_iterator last) {
+    if (pos != last) {
+        last.node_->prev->next = pos.node_;        // (1) 将 last 之前的节点与 pos 连接
+        first.node_->prev->next = last.node_;      // (2) 将 first 之前的节点与 last 连接
+        pos.node_->prev->next = first.node_;       // (3) 将 pos 之前的节点与 first 连接
+        auto tmp = pos.node_->prev;                // (4) 存储 pos 之前的节点
+        pos.node_->prev = last.node_->prev;        // (5) 将 pos 之前的节点与 last 之前的节点连接
+        last.node_->prev = first.node_->prev;      // (6) 将 last 之前的节点与 first 之前的节点连接
+        first.node_->prev = tmp;                   // (7) 将 first 之前的节点与 pos 之前的节点连接
+    }
+}
+
 /// @brief 将 x 合并到 pos 之前
 /// @tparam T  元素的类型
 /// @param pos  合并的位置
@@ -636,12 +651,16 @@ void list<T>::splice(const_iterator pos, list& x) {
     if (!x.empty()) {
         THROW_LENGTH_ERROR_IF(size_ > max_size() - x.size_, "list<T>'s size too big");
         
-        auto first = x.node_->next;
-        auto  last = x.node_->prev;
+        // auto first = x.node_->next;
+        // auto  last = x.node_->prev;
 
-        x.unlink_nodes(first, last);
-        link_nodes(pos.node_, first, last);
+        // x.unlink_nodes(first, last);
+        // link_nodes(pos.node_, first, last);
 
+        // size_ += x.size_;
+        // x.size_ = 0;
+
+        transfer(pos, x.begin(), x.end());
         size_ += x.size_;
         x.size_ = 0;
     }
@@ -656,9 +675,13 @@ template <class T>
 void list<T>::splice(const_iterator pos, list& x, const_iterator it) {
     if (pos.node_ != it.node_ && pos.node_ != it.node_->next) {
         THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T>'s size too big");
-        auto first = it.node_;
-        x.unlink_nodes(first, first);
-        link_nodes(pos.node_, first, first);
+        // auto first = it.node_;
+        // x.unlink_nodes(first, first);
+        // link_nodes(pos.node_, first, first);
+        // ++size_;
+        // --x.size_;
+
+        transfer(pos, it, it.node_->next);
         ++size_;
         --x.size_;
     }
@@ -675,10 +698,14 @@ void list<T>::splice(const_iterator pos, list& x, const_iterator first, const_it
     if (first != last && this != &x) {
         size_type n = tinystl::distance(first, last);
         THROW_LENGTH_ERROR_IF(size_ > max_size() - n, "list<T>'s size too big");
-        auto first_node = first.node_;
-        auto last_node = last.node_->prev;
-        x.unlink_nodes(first_node, last_node);
-        link_nodes(pos.node_, first_node, last_node);
+        // auto first_node = first.node_;
+        // auto last_node = last.node_->prev;
+        // x.unlink_nodes(first_node, last_node);
+        // link_nodes(pos.node_, first_node, last_node);
+        // size_ += n;
+        // x.size_ -= n;
+
+        transfer(pos, first, last);
         size_ += n;
         x.size_ -= n;
     }
@@ -732,31 +759,44 @@ void list<T>::merge(list& x, Compare comp) {
     auto f2 = x.begin();
     auto l2 = x.end();
 
+    // while (f1 != l1 && f2 != l2) {
+    //   if (comp(*f2, *f1)) {
+    //     // 使 comp 为 true 的一段区间
+    //     auto next = f2;
+    //     ++next;
+    //     for (; next != l2 && comp(*next, *f1); ++next);
+    //     auto f = f2.node_;
+    //     auto l = next.node_->prev;
+    //     f2 = next;
+
+    //     // link node
+    //     x.unlink_nodes(f, l);
+    //     link_nodes(f1.node_, f, l);
+    //     ++f1;
+    //   }
+    //   else ++f1;
+    // }
+
+    // // 连接剩余部分
+    // if (f2 != l2) {
+    //   auto f = f2.node_;
+    //   auto l = l2.node_->prev;
+    //   x.unlink_nodes(f, l);
+    //   link_nodes(l1.node_, f, l);
+    // }
+
+    // size_ += x.size_;
+    // x.size_ = 0;
+
     while (f1 != l1 && f2 != l2) {
-      if (comp(*f2, *f1)) {
-        // 使 comp 为 true 的一段区间
-        auto next = f2;
-        ++next;
-        for (; next != l2 && comp(*next, *f1); ++next);
-        auto f = f2.node_;
-        auto l = next.node_->prev;
-        f2 = next;
-
-        // link node
-        x.unlink_nodes(f, l);
-        link_nodes(f1.node_, f, l);
-        ++f1;
-      }
-      else ++f1;
+        if (comp(*f2, *f1)) {
+            auto next = f2;
+            transfer(f1, f2, ++next);
+            f2 = next;
+        }
+        else ++f1;
     }
-
-    // 连接剩余部分
-    if (f2 != l2) {
-      auto f = f2.node_;
-      auto l = l2.node_->prev;
-      x.unlink_nodes(f, l);
-      link_nodes(l1.node_, f, l);
-    }
+    if (f2 != l2) transfer(l1, f2, l2);
 
     size_ += x.size_;
     x.size_ = 0;
@@ -764,14 +804,23 @@ void list<T>::merge(list& x, Compare comp) {
 
 template <class T>
 void list<T>::reverse() noexcept {
-    if (size_ <= 1) return;
-    auto i = begin();
-    auto e = end();
-    while (i.node_ != e.node_) {
-        tinystl::swap(i.node_->prev, i.node_->next);
-        i.node_ = i.node_->prev;
+    // if (size_ <= 1) return;
+    // auto i = begin();
+    // auto e = end();
+    // while (i.node_ != e.node_) {
+    //     tinystl::swap(i.node_->prev, i.node_->next);
+    //     i.node_ = i.node_->prev;
+    // }
+    // tinystl::swap(e.node_->prev, e.node_->next);
+
+    if (node_->next == node_ || node_->next->next == node_) return;
+    auto first = begin();
+    ++first;
+    while (first != end()) {
+        auto old = first;
+        ++first;
+        transfer(begin(), old, first);
     }
-    tinystl::swap(e.node_->prev, e.node_->next);
 }
 
 
@@ -1032,61 +1081,41 @@ list<T>::copy_insert(const_iterator pos, size_type n, Iter first) {
 
 template <class T>
 template <class Compare>
-typename list<T>::iterator
-list<T>::list_sort(iterator f1, iterator l2, size_type n, Compare comp) {
-  if (n < 2) return f1;
-  if (n == 2) {
-    if (comp(*--l2, *f1)) {
-      auto ln = l2.node_;
-      unlink_nodes(ln, ln);
-      link_nodes(f1.node_, ln, ln);
-      return l2;
+void list<T>::list_sort(Compare comp) {
+    if (node_->next == node_ || node_->next->next == node_) return;
+
+    // 一些新的 lists 用于存储分割后的 lists
+    list<T> carry;
+    list<T> counter[64];  // 缓存表，第 i 层 list 存储长度为 2^i
+    int fill = 0;         // 记录最深层数，counter[fill] 为空
+
+    while (!empty()) {
+        // 1. 将当前 list 的头部元素取出，放入 carry 中
+        // 运行到此处 carry 必然为空，可以处理下一个元素
+        carry.splice(carry.begin(), *this, begin());
+        int i = 0;  // 记录经过的层数
+        // 2. 从小往大不断合并非空归并层次直至遇到空层或者到达当前最大归并层次
+        // 出这个循环，无论 i 是否超过最大层，counter[i] 必然是空的
+        // !counter[i].empty() 决定了 counter[i] 中存放的 list 的长度为 2^i
+        while (i < fill && !counter[i].empty()) {
+            // 将 carry 的元素与 counter[i] 的元素按顺序合并
+            counter[i].merge(carry, comp);
+            // 将合并后的结果放入 carry 中，i + 1，继续下一层的合并
+            carry.swap(counter[i++]);
+        }
+        // 3. 将合并出的结果放入下一层中
+        // 根据上面循环的退出条件，count[i]必然是空的，
+        // 这里相当于将carry这个操作结果放入下一层，并将carry置空，对应步骤 1
+        carry.swap(counter[i]);
+        // 如果 i == fill，说明当前层是最大层，需要增加一层
+        if (i == fill) ++fill;
     }
-    return f1;
-  }
 
-  auto n2 = n / 2;
-  auto l1 = f1;
-  tinystl::advance(l1, n2);
-  auto result = f1 = list_sort(f1, l1, n2, comp);  // 前半段的最小位置
-  auto f2 = l1 = list_sort(l1, l2, n - n2, comp);  // 后半段的最小位置
-
-  // 把较小的一段区间移到前面
-  if (comp(*f2, *f1)) {
-    auto m = f2;
-    ++m;
-    for (; m != l2 && comp(*m, *f1); ++m);
-    auto f = f2.node_;
-    auto l = m.node_->prev;
-    result = f2;
-    l1 = f2 = m;
-    unlink_nodes(f, l);
-    m = f1;
-    ++m;
-    link_nodes(f1.node_, f, l);
-    f1 = m;
-  }
-  else ++f1;
-
-  // 合并两段有序区间
-  while (f1 != l1 && f2 != l2) {
-    if (comp(*f2, *f1)) {
-      auto m = f2;
-      ++m;
-      for (; m != l2 && comp(*m, *f1); ++m);
-      auto f = f2.node_;
-      auto l = m.node_->prev;
-      if (l1 == f2) l1 = m;
-      f2 = m;
-      unlink_nodes(f, l);
-      m = f1;
-      ++m;
-      link_nodes(f1.node_, f, l);
-      f1 = m;
+    // 将每一层的 list 依次合并，每一层保证有序
+    for (int i = 1; i < fill; ++i) {
+        counter[i].merge(counter[i - 1], comp);
     }
-    else ++f1;
-  }
-  return result;  // TODO: 理解这部分的逻辑
+    swap(counter[fill - 1]);
 }
 
 // ==================================== 重载比较操作符 ==================================== //
