@@ -46,6 +46,12 @@ struct deque_buf_size {
     static constexpr size_t value = sizeof(T) < 256 ? 4096 / sizeof(T) : 16;
 };
 
+// ============================================= deque_iterator ============================================= //
+
+/// @brief 模板类 deque_iterator
+/// @tparam T  迭代器所指向的对象的类型
+/// @tparam Ref  迭代器所指向的对象的引用类型
+/// @tparam Ptr  迭代器所指向的对象的指针类型
 template <class T, class Ref, class Ptr>
 struct deque_iterator : public iterator<random_access_iterator_tag, T> {
     
@@ -84,7 +90,6 @@ struct deque_iterator : public iterator<random_access_iterator_tag, T> {
         : cur(rhs.cur), first(rhs.first), last(rhs.last), node(rhs.node) {}
 
     /// @brief 拷贝构造函数
-    /// @param rhs 
     deque_iterator(const const_iterator& rhs) noexcept
         : cur(rhs.cur), first(rhs.first), last(rhs.last), node(rhs.node) {}
 
@@ -211,6 +216,11 @@ struct deque_iterator : public iterator<random_access_iterator_tag, T> {
 
 };  // struct deque_iterator
 
+
+// ============================================= deque ============================================= //
+
+/// @brief 模板类 deque
+/// @tparam T  deque 中存储的元素的类型
 template <class T>
 class deque {
 
@@ -242,8 +252,8 @@ public: // deque 的型别定义
 
 private: // deque 的成员变量
     
-    iterator    start_;        // 指向第一个节点
-    iterator    finish_;       // 指向最后一个节点
+    iterator    start_;        // 指向第一个缓冲区
+    iterator    finish_;       // 指向最后一个缓冲区
     map_pointer map_;          // 指向管控中心，管控中心是一个指针数组，每个指针指向一个缓冲区
     size_type   map_size_;     // 管控中心的大小
 
@@ -298,19 +308,15 @@ public:  // 迭代器相关操作
 
     iterator               begin()   noexcept       { return start_; }
     const_iterator         begin()   const noexcept { return start_; }
-    const_iterator         cbegin()  const noexcept { return start_; }
 
     iterator               end()     noexcept       { return finish_; }
     const_iterator         end()     const noexcept { return finish_; }
-    const_iterator         cend()    const noexcept { return finish_; }
 
     reverse_iterator       rbegin()  noexcept       { return reverse_iterator(end()); }
     const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator(end()); }
-    const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(end()); }
 
     reverse_iterator       rend()    noexcept       { return reverse_iterator(begin()); }
     const_reverse_iterator rend()    const noexcept { return const_reverse_iterator(begin()); }
-    const_reverse_iterator crend()   const noexcept { return const_reverse_iterator(begin()); }
 
 public:  // 容量相关操作
 
@@ -388,7 +394,7 @@ public:  // 修改容器相关操作
     iterator emplace(iterator pos, Args&& ...args);
 
 
-    void push_front(const value_type& value) { emplace_front(value); }  // TODO:这样做不知道对不对
+    void push_front(const value_type& value) { emplace_front(value); }
     void push_front(value_type&& value)      { emplace_front(tinystl::move(value)); }
 
     void push_back(const value_type& value)  { emplace_back(value); }
@@ -702,17 +708,18 @@ void deque<T>::clear() {
     // 针对头尾以外的缓冲区，全部释放
     for (auto cur = start_.node + 1; cur < finish_.node; ++cur) {
         data_allocator::destroy(*cur, *cur + buffer_size);       // 析构缓冲区内的元素
+        data_allocator::deallocate(*cur, buffer_size);           // 释放缓冲区
     }
     // 至少有头尾两个缓冲区
     if (start_.node != finish_.node) {
         data_allocator::destroy(start_.cur, start_.last);        // 析构头部缓冲区内的元素
         data_allocator::destroy(finish_.first, finish_.cur);     // 析构尾部缓冲区内的元素
+        data_allocator::deallocate(finish_.first, buffer_size);  // 释放尾部缓冲区
     }
     // 仅剩一个缓冲区
-    else {
-        data_allocator::destroy(start_.cur, finish_.cur);        // 只需析构头部缓冲区内的元素
-    }
-    shrink_to_fit();  // 释放内存由 shrink_to_fit() 完成
+    else data_allocator::destroy(start_.cur, finish_.cur);       // 只需析构头部缓冲区内的元素
+    // 注意，并不释放头部缓冲区，这唯一的缓冲区将保留。
+
     finish_ = start_; // 重置迭代器
 }
 
@@ -771,7 +778,9 @@ void deque<T>::destroy_buffer(map_pointer nstart, map_pointer nfinish) {
 /// @brief 初始化一个容量为 nElem 的 deque
 template <class T>
 void deque<T>::map_init(size_type nElem) {
-    const auto nNode = nElem / buffer_size + 1;  // 向下取整，因此需要加 1
+    // 需要节点数 = （元素数 / 缓冲区大小） + 1
+    // 如果刚好整除，会多分配一个节点
+    const auto nNode = nElem / buffer_size + 1;
     // map 中的节点个数，最少为 DEQUE_MAP_INIT_SIZE，最多为 nNode + 2，前后各预留一个，方便扩容
     map_size_ = tinystl::max(static_cast<size_type>(DEQUE_MAP_INIT_SIZE), nNode + 2);
     
@@ -798,10 +807,13 @@ void deque<T>::map_init(size_type nElem) {
         throw;
     }
 
+    // 为 deque 的两个迭代器赋值
     start_.set_node(nstart);
     finish_.set_node(nfinish);
     start_.cur = start_.first;
     finish_.cur = finish_.first + nElem % buffer_size;
+    // 前面说过，如果刚好整除，会多分配一个节点，此时即令 cur 指向这多分配的节点的起始处
+    // 满足前闭后开的原则
 }
 
 /// @brief 初始化一个容量为 n 且每个元素都为 value 的 deque
@@ -871,7 +883,7 @@ void deque<T>::copy_assign(InputIterator first, InputIterator last, tinystl::inp
         erase(first1, last1);
     }
     else {
-        insert_dispatch(finish_, first, last, tinystl::input_iterator_tag());  // TODO: {} or ()
+        insert_dispatch(finish_, first, last, tinystl::input_iterator_tag());
     }
 
 }
@@ -885,7 +897,7 @@ void deque<T>::copy_assign(ForwardIterator first, ForwardIterator last, tinystl:
         auto next = first;
         tinystl::advance(next, size());
         tinystl::copy(first, next, start_);
-        insert_dispatch(finish_, next, last, tinystl::forward_iterator_tag());  // TODO: {} or ()
+        insert_dispatch(finish_, next, last, tinystl::forward_iterator_tag());
     }
     else {
         erase(tinystl::copy(first, last, start_), finish_);
