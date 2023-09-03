@@ -54,7 +54,7 @@ namespace deque_test {
         FUN_AFTER(d1, d1.resize(5));                               // 8 9 1 2 3
         FUN_AFTER(d1, d1.resize(8, 8));                            // 8 9 1 2 3 8 8 8
         FUN_AFTER(d1, d1.clear());                                 //
-        FUN_AFTER(d1, d1.shrink_to_fit());                         // 
+        // FUN_AFTER(d1, d1.shrink_to_fit());                      // 已弃用 
         FUN_AFTER(d1, d1.swap(d4));                                // 1 2 3 4 5
         FUN_VALUE(*(d1.begin()));                                  // 1
         FUN_VALUE(*(d1.end() - 1));                                // 5
