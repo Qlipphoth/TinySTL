@@ -911,7 +911,7 @@ typename deque<T>::iterator deque<T>::insert_aux(iterator pos, Args&& ...args) {
     const auto elem_before = pos - start_;
     // 如果前面的元素比较少，就从前面开始移动
     if (elem_before < (size() >> 1)) {
-        emplace_front(front());  // 现在最前方插入一个与头部相同的元素
+        emplace_front(front());  // 先在最前方插入一个与头部相同的元素
         auto front1 = start_;  ++front1;
         auto front2 = front1;  ++front2;
         pos = start_ + elem_before;
@@ -920,7 +920,7 @@ typename deque<T>::iterator deque<T>::insert_aux(iterator pos, Args&& ...args) {
     }
     // 否则从后面开始移动
     else {
-        emplace_back(back());  // 现在最后方插入一个与尾部相同的元素
+        emplace_back(back());  // 先在最后方插入一个与尾部相同的元素
         auto back1 = finish_;  --back1;
         auto back2 = back1;  --back2;
         pos = start_ + elem_before;
