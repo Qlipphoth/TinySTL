@@ -325,7 +325,9 @@ public:  // 容量相关操作
     size_type  max_size() const noexcept  { return static_cast<size_type>(-1); }
     void       resize(size_type new_size) { resize(new_size, value_type()); }
     void       resize(size_type new_size, const value_type& value);
-    void       shrink_to_fit()  noexcept;
+    
+    // 已弃用
+    // void       shrink_to_fit()  noexcept; 
 
 public:  // 访问元素相关操作
 
@@ -393,20 +395,21 @@ public:  // 修改容器相关操作
     template <class ...Args>
     iterator emplace(iterator pos, Args&& ...args);
 
-
     void push_front(const value_type& value) { emplace_front(value); }
     void push_front(value_type&& value)      { emplace_front(tinystl::move(value)); }
 
     void push_back(const value_type& value)  { emplace_back(value); }
     void push_back(value_type&& value)       { emplace_back(tinystl::move(value)); }
 
+    template <class ...Args>
+    void push_back_aux(Args&& ...args);
 
-    void pop_front();
-    void pop_back();
-
-
+    template <class ...Args>
+    void push_front_aux(Args&& ...args);
+    
     iterator insert(iterator pos, const value_type& value);
     iterator insert(iterator pos, value_type&& value);
+    
     void insert(iterator pos, size_type n, const value_type& value);
     
     template <class InputIterator, typename std::enable_if<
@@ -415,6 +418,9 @@ public:  // 修改容器相关操作
         insert_dispatch(pos, first, last, iterator_category(first));
     }
 
+
+    void pop_front();
+    void pop_back();
 
     iterator erase(iterator pos);
     iterator erase(iterator first, iterator last);
@@ -465,10 +471,73 @@ private:  // help functions
     void        insert_dispatch(iterator pos, ForwardIterator first, ForwardIterator last, 
                     tinystl::forward_iterator_tag);
 
+    // 已弃用
+    // void        require_capacity(size_type n, bool front);
+    // void        reallocate_map_at_front(size_type need);
+    // void        reallocate_map_at_back(size_type need);
 
-    void        require_capacity(size_type n, bool front);
-    void        reallocate_map_at_front(size_type need);
-    void        reallocate_map_at_back(size_type need);
+public:  // appendix
+
+    /// @brief 为 node 分配存放元素的缓冲区
+    /// @return 返回分配的缓冲区的首地址
+    pointer     allocate_node() { return data_allocator::allocate(buffer_size); }
+
+    /// @brief 释放 node 所指向的缓冲区
+    /// @param p  缓冲区的首地址
+    void        deallocate_node(pointer p) { data_allocator::deallocate(p, buffer_size); }
+
+    /// @brief 分配一个大小为 n 的 map
+    /// @param n  map 的大小
+    /// @return  返回 map 的首地址
+    map_pointer allocate_map(size_type n) { return map_allocator::allocate(n); }
+
+    /// @brief 释放大小为 n 的 map
+    /// @param p  map 的首地址
+    /// @param n  map 的大小
+    void        deallocate_map(map_pointer p, size_type n) { map_allocator::deallocate(p, n); }
+
+    /// @brief 在 map 的尾部添加 nodes_to_add 个节点
+    /// @param nodes_to_add 
+    void reserve_map_at_back(size_type nodes_to_add = 1) {
+        if (nodes_to_add + 1 > map_size_ - (finish_.node - map_)) {
+            reallocate_map(nodes_to_add, false);
+        }
+    }
+
+    /// @brief 在 map 的头部添加 nodes_to_add 个节点
+    /// @param nodes_to_add 
+    void reserve_map_at_front(size_type nodes_to_add = 1) {
+        if (nodes_to_add > static_cast<size_type>(start_.node - map_)) {
+            reallocate_map(nodes_to_add, true);
+        }
+    }
+
+    void        reallocate_map(size_type nodes_to_add, bool add_at_front);
+
+    /// @brief 在 deque 的头部预留 n 个元素的空间
+    /// @param n  预留的元素个数
+    /// @return  返回头部预留空间的起始迭代器
+    iterator    reserve_elements_at_front(size_type n) {
+        size_type vacancies = start_.cur - start_.first;
+        if (n > vacancies) {
+            new_elements_at_front(n - vacancies);
+        }
+        return start_ - static_cast<difference_type>(n);
+    }
+    
+    /// @brief 在 deque 的尾部预留 n 个元素的空间
+    /// @param n  预留的元素个数
+    /// @return  返回尾部预留空间的起始迭代器
+    iterator    reserve_elements_at_back(size_type n) {
+        size_type vacancies = (finish_.last - finish_.cur) - 1;
+        if (n > vacancies) {
+            new_elements_at_back(n - vacancies);
+        }
+        return finish_ + static_cast<difference_type>(n);
+    }
+
+    void        new_elements_at_front(size_type new_elements);
+    void        new_elements_at_back(size_type new_elements);
 
 };  // class deque
 
@@ -519,19 +588,20 @@ void deque<T>::resize(size_type new_size, const value_type& value) {
     }
 }
 
-/// @brief 减小容器容量，至少会留下头部缓冲区
-/// @tparam T 
-template <class T>
-void deque<T>::shrink_to_fit() noexcept {
-    for (auto cur = map_; cur < start_.node; ++cur) {
-        data_allocator::deallocate(*cur, buffer_size);
-        *cur = nullptr;
-    }
-    for (auto cur = finish_.node + 1; cur < map_ + map_size_; ++cur) {
-        data_allocator::deallocate(*cur, buffer_size);
-        *cur = nullptr;
-    }
-}
+// 已弃用：shrink_to_fit()
+// /// @brief 减小容器容量，至少会留下头部缓冲区
+// /// @tparam T 
+// template <class T>
+// void deque<T>::shrink_to_fit() noexcept {
+//     for (auto cur = map_; cur < start_.node; ++cur) {
+//         data_allocator::deallocate(*cur, buffer_size);
+//         *cur = nullptr;
+//     }
+//     for (auto cur = finish_.node + 1; cur < map_ + map_size_; ++cur) {
+//         data_allocator::deallocate(*cur, buffer_size);
+//         *cur = nullptr;
+//     }
+// }
 
 /// @brief 在头部就地构造元素
 template <class T>
@@ -544,15 +614,16 @@ void deque<T>::emplace_front(Args&& ...args) {
     }
     // 否则需要重新分配空间
     else {
-        require_capacity(1, true);
-        try {
-            --start_;
-            data_allocator::construct(start_.cur, tinystl::forward<Args>(args)...);
-        }
-        catch (...) {
-            ++start_;
-            throw;
-        }
+        // require_capacity(1, true);
+        // try {
+        //     --start_;
+        //     data_allocator::construct(start_.cur, tinystl::forward<Args>(args)...);
+        // }
+        // catch (...) {
+        //     ++start_;
+        //     throw;
+        // }
+        push_front_aux(tinystl::forward<Args>(args)...);
     }
 }
 
@@ -567,9 +638,10 @@ void deque<T>::emplace_back(Args&& ...args) {
     }
     // 否则需要重新分配空间
     else {
-        require_capacity(1, false);
-        data_allocator::construct(finish_.cur, tinystl::forward<Args>(args)...);
-        ++finish_;
+        // require_capacity(1, false);
+        // data_allocator::construct(finish_.cur, tinystl::forward<Args>(args)...);
+        // ++finish_;
+        push_back_aux(tinystl::forward<Args>(args)...);
     }
 }
 
@@ -586,6 +658,47 @@ typename deque<T>::iterator deque<T>::emplace(iterator pos, Args&& ...args) {
         return finish_ - 1;
     }
     return insert_aux(pos, tinystl::forward<Args>(args)...);
+}
+
+/// @brief 重新分配 map 并在尾部添加元素
+/// @tparam T  元素类型
+/// @param ...args  元素的构造参数
+template <class T>
+template <class... Args>
+inline void deque<T>::push_back_aux(Args &&...args)
+{
+    reserve_map_at_back();
+    *(finish_.node + 1) = allocate_node();
+    try {
+        data_allocator::construct(finish_.cur, tinystl::forward<Args>(args)...);
+        finish_.set_node(finish_.node + 1);
+        finish_.cur = finish_.first;
+    }
+    catch (...) {
+        deallocate_node(*(finish_.node + 1));
+        throw;
+    }
+}
+
+/// @brief 重新分配 map 并在头部添加元素
+/// @tparam T  元素类型
+/// @param ...args  元素的构造参数
+template <class T>
+template <class... Args>
+inline void deque<T>::push_front_aux(Args &&...args)
+{
+    reserve_map_at_front();
+    *(start_.node - 1) = allocate_node();
+    try {
+        start_.set_node(start_.node - 1);
+        start_.cur = start_.last - 1;
+        data_allocator::construct(start_.cur, tinystl::forward<Args>(args)...);
+    }
+    catch (...) {
+        ++start_;
+        deallocate_node(*(start_.node - 1));
+        throw;
+    }
 }
 
 /// @brief 弹出头部元素
@@ -638,14 +751,16 @@ typename deque<T>::iterator deque<T>::insert(iterator pos, value_type&& value) {
 template <class T>
 void deque<T>::insert(iterator pos, size_type n, const value_type& value) {
     if (pos.cur == start_.cur) {
-        require_capacity(n, true);
-        auto new_start = start_ - static_cast<difference_type>(n);
+        // require_capacity(n, true);
+        // auto new_start = start_ - static_cast<difference_type>(n);
+        auto new_start = reserve_elements_at_front(n);
         tinystl::uninitialized_fill_n(new_start, n, value);
         start_ = new_start;
     }
     else if (pos.cur == finish_.cur) {
-        require_capacity(n, false);
-        auto new_finish = finish_ + static_cast<difference_type>(n);
+        // require_capacity(n, false);
+        // auto new_finish = finish_ + static_cast<difference_type>(n);
+        auto new_finish = reserve_elements_at_back(n);
         tinystl::uninitialized_fill_n(finish_, n, value);
         finish_ = new_finish;
     }
@@ -930,18 +1045,24 @@ typename deque<T>::iterator deque<T>::insert_aux(iterator pos, Args&& ...args) {
     return pos;
 }
 
-/// @brief 在 pos 处插入 n 个元素
+/// @brief 在 pos 处插入 n 个值为 value 的元素
+/// @tparam T  元素类型
+/// @param pos  插入的位置
+/// @param n  插入的元素个数
+/// @param value  插入的元素的值
 template <class T>
 void deque<T>::fill_insert(iterator pos, size_type n, const value_type& value) {
     const auto elem_before = pos - start_;
     const auto len = size();
     auto value_copy = value;
 
+    // 如果前面的元素比较少，就从前面开始移动
     if (elem_before < (len >> 1)) {
-        require_capacity(n, true);
+        // require_capacity(n, true);
 
         auto old_start = start_;  // 原始的 start_ 的位置
-        auto new_start = start_ - static_cast<difference_type>(n);  // 插入新元素后的 start_ 的位置
+        // auto new_start = start_ - static_cast<difference_type>(n);  // 插入新元素后的 start_ 的位置
+        auto new_start = reserve_elements_at_front(n);  // 插入新元素后的 start_ 的位置
         pos = start_ + elem_before;  // 要插入新元素在 pos 之前
 
         try {
@@ -966,11 +1087,13 @@ void deque<T>::fill_insert(iterator pos, size_type n, const value_type& value) {
         }
 
     }
+    // 否则从后面开始移动
     else {
-        require_capacity(n, false);
+        // require_capacity(n, false);
 
         auto old_finish = finish_;  // 原始的 finish_ 的位置
-        auto new_finish = finish_ + static_cast<difference_type>(n);  // 插入新元素后的 finish_ 的位置
+        // auto new_finish = finish_ + static_cast<difference_type>(n);  // 插入新元素后的 finish_ 的位置
+        auto new_finish = reserve_elements_at_back(n);  // 插入新元素后的 finish_ 的位置
         const auto elem_after = len - elem_before;  // pos 之后的元素的个数
         pos = finish_ - elem_after;  // 要插入新元素在 pos 之前
 
@@ -1003,11 +1126,13 @@ void deque<T>::copy_insert(iterator pos, ForwardIterator first, ForwardIterator 
     const auto elem_before = pos - start_;
     const auto len = size();
 
+    // 如果前面的元素比较少，就从前面开始移动
     if (elem_before < (len >> 1)) {
-        require_capacity(n, true);
+        // require_capacity(n, true);
 
         auto old_start = start_;  // 原始的 start_ 的位置
-        auto new_start = start_ - static_cast<difference_type>(n);  // 插入新元素后的 start_ 的位置
+        // auto new_start = start_ - static_cast<difference_type>(n);  // 插入新元素后的 start_ 的位置
+        auto new_start = reserve_elements_at_front(n);  // 插入新元素后的 start_ 的位置
         pos = start_ + elem_before;  // 要插入新元素在 pos 之前
 
         try {
@@ -1034,11 +1159,13 @@ void deque<T>::copy_insert(iterator pos, ForwardIterator first, ForwardIterator 
         }
 
     }
+    // 否则从后面开始移动
     else {
-        require_capacity(n, false);
+        // require_capacity(n, false);
 
         auto old_finish = finish_;  // 原始的 finish_ 的位置
-        auto new_finish = finish_ + static_cast<difference_type>(n);  // 插入新元素后的 finish_ 的位置
+        // auto new_finish = finish_ + static_cast<difference_type>(n);  // 插入新元素后的 finish_ 的位置
+        auto new_finish = reserve_elements_at_back(n);  // 插入新元素后的 finish_ 的位置
         const auto elem_after = len - elem_before;  // pos 之后的元素的个数
         pos = finish_ - elem_after;  // 要插入新元素在 pos 之前
 
@@ -1075,10 +1202,12 @@ void deque<T>::insert_dispatch(iterator pos, InputIterator first, InputIterator 
     const auto n = tinystl::distance(first, last);
     const auto elem_before = pos - start_;
     if (elem_before < (size() >> 1)) {
-        require_capacity(n, true);
+        // require_capacity(n, true);
+        reserve_elements_at_front(n);
     }
     else {
-        require_capacity(n, false);
+        // require_capacity(n, false);
+        reserve_elements_at_back(n);
     }
     pos = start_ + elem_before;
     auto cur = --last;
@@ -1095,8 +1224,9 @@ void deque<T>::insert_dispatch(iterator pos, ForwardIterator first, ForwardItera
     if (last <= first) return;
     const auto n = tinystl::distance(first, last);
     if (pos.cur == start_.cur) {
-        require_capacity(n, true);
-        auto new_start = start_ - static_cast<difference_type>(n);
+        // require_capacity(n, true);
+        // auto new_start = start_ - static_cast<difference_type>(n);
+        auto new_start = reserve_elements_at_front(n);
         try {
             tinystl::uninitialized_copy(first, last, new_start);
             start_ = new_start;
@@ -1107,8 +1237,9 @@ void deque<T>::insert_dispatch(iterator pos, ForwardIterator first, ForwardItera
         }
     }
     else if (pos.cur == finish_.cur) {
-        require_capacity(n, false);
-        auto new_finish = finish_ + static_cast<difference_type>(n);
+        // require_capacity(n, false);
+        // auto new_finish = finish_ + static_cast<difference_type>(n);
+        auto new_finish = reserve_elements_at_back(n);
         try {
             tinystl::uninitialized_copy(first, last, finish_);
             finish_ = new_finish;
@@ -1123,77 +1254,157 @@ void deque<T>::insert_dispatch(iterator pos, ForwardIterator first, ForwardItera
     }
 }
 
-/// @brief 分配管控中心容量
+// 已弃用：require_capacity(size_type n, bool front)
+// /// @brief 分配管控中心容量
+// template <class T>
+// void deque<T>::require_capacity(size_type n, bool front) {
+//     if (front && (static_cast<size_type>(start_.cur - start_.first) < n)) {
+//         const size_type need_buffer = (n - (start_.cur - start_.first)) / buffer_size + 1;  // 需要的缓冲区个数
+//         // 如果需要的缓冲区个数大于当前的缓冲区个数，就重新分配
+//         if (need_buffer > static_cast<size_type>(start_.node - map_)) {
+//             reallocate_map_at_front(need_buffer);
+//             return;
+//         }
+//         // 否则只需创建缓冲区
+//         create_buffer(start_.node - need_buffer, start_.node - 1);
+//     }
+//     else if (!front && (static_cast<size_type>(finish_.last - finish_.cur - 1) < n)) {
+//         const size_type need_buffer = (n - (finish_.last - finish_.cur - 1)) / buffer_size + 1;  // 需要的缓冲区个数
+//         // 如果需要的缓冲区个数大于当前的缓冲区个数，就重新分配
+//         if (need_buffer > static_cast<size_type>((map_ + map_size_) - finish_.node - 1)) {
+//             reallocate_map_at_back(need_buffer);
+//             return;
+//         }
+//         // 否则只需创建缓冲区
+//         create_buffer(finish_.node + 1, finish_.node + need_buffer);
+//     }
+// }
+
+// 已弃用：reallocate_map_at_front(size_type need_buffer)
+// template <class T>
+// void deque<T>::reallocate_map_at_front(size_type need_buffer) {
+//     const size_type new_map_size = tinystl::max(map_size_ << 1, map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE);
+//     map_pointer new_map = create_map(new_map_size);
+//     const size_type old_buffer = finish_.node - start_.node + 1;
+//     const size_type new_buffer = old_buffer + need_buffer;
+//     auto start = new_map + (new_map_size - new_buffer) / 2;  // 新的 start_ 的位置
+//     auto mid   = start + need_buffer;  
+//     auto finish = mid + old_buffer;
+//     create_buffer(start, mid - 1);
+//     for (auto cur = mid, old_cur = start_.node; cur != finish; ++cur, ++old_cur) *cur = *old_cur;
+//     map_allocator::deallocate(map_, map_size_);
+//     map_ = new_map;
+//     map_size_ = new_map_size;
+//     start_ = iterator(*mid + (start_.cur - start_.first), mid);
+//     finish_ = iterator(*(finish - 1) + (finish_.cur - finish_.first), finish - 1);
+// }
+
+// 已弃用：reallocate_map_at_back(size_type need_buffer)
+// template <class T>
+// void deque<T>::reallocate_map_at_back(size_type need_buffer) {
+//     const size_type new_map_size = tinystl::max(map_size_ << 1, map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE);
+//     map_pointer new_map = create_map(new_map_size); 
+//     const size_type old_buffer = finish_.node - start_.node + 1;
+//     const size_type new_buffer = old_buffer + need_buffer;
+//     auto start  = new_map + ((new_map_size - new_buffer) / 2);  // 新的 start_ 的位置
+//     auto mid    = start + old_buffer;  
+//     auto finish = mid + need_buffer;
+//     for (auto cur = start, old_cur = start_.node; cur != mid; ++cur, ++old_cur) *cur = *old_cur;
+//     create_buffer(mid, finish - 1);
+//     map_allocator::deallocate(map_, map_size_);
+//     map_ = new_map;
+//     map_size_ = new_map_size;
+//     start_ = iterator(*start + (start_.cur - start_.first), start);
+//     finish_ = iterator(*(mid - 1) + (finish_.cur - finish_.first), mid - 1);
+// }
+
+
+/// @brief 重新分配管控中心大小
+/// @tparam T  deque 的元素类型
+/// @param nodes_to_add  需要增加的节点个数
+/// @param add_at_front  是否在头部增加节点
 template <class T>
-void deque<T>::require_capacity(size_type n, bool front) {
-    if (front && (static_cast<size_type>(start_.cur - start_.first) < n)) {
-        const size_type need_buffer = (n - (start_.cur - start_.first)) / buffer_size + 1;  // 需要的缓冲区个数
-        // 如果需要的缓冲区个数大于当前的缓冲区个数，就重新分配
-        if (need_buffer > static_cast<size_type>(start_.node - map_)) {
-            reallocate_map_at_front(need_buffer);
-            return;
+inline void deque<T>::reallocate_map(size_type nodes_to_add, bool add_at_front)
+{
+    const size_type old_num_nodes = finish_.node - start_.node + 1;  // 原始的节点个数
+    const size_type new_num_nodes = old_num_nodes + nodes_to_add;    // 新的节点个数
+
+    map_pointer new_nstart;
+
+    // 如果原始的节点个数大于新的节点个数的两倍，就将管控中心的节点向中间移动
+    // 会出现在一直向头部或尾部插入元素的情况下
+    if (map_size_ > 2 * new_num_nodes) {
+        // 将 new_nstart 置于中间位置
+        new_nstart = map_ + (map_size_ - new_num_nodes) / 2 + (add_at_front ? nodes_to_add : 0);
+        if (new_nstart < start_.node) {
+            tinystl::copy(start_.node, finish_.node + 1, new_nstart);
         }
-        // 否则只需创建缓冲区
-        create_buffer(start_.node - need_buffer, start_.node - 1);
-    }
-    else if (!front && (static_cast<size_type>(finish_.last - finish_.cur - 1) < n)) {
-        const size_type need_buffer = (n - (finish_.last - finish_.cur - 1)) / buffer_size + 1;  // 需要的缓冲区个数
-        // 如果需要的缓冲区个数大于当前的缓冲区个数，就重新分配
-        if (need_buffer > static_cast<size_type>((map_ + map_size_) - finish_.node - 1)) {
-            reallocate_map_at_back(need_buffer);
-            return;
+        else {
+            tinystl::copy_backward(start_.node, finish_.node + 1, new_nstart + old_num_nodes);
         }
-        // 否则只需创建缓冲区
-        create_buffer(finish_.node + 1, finish_.node + need_buffer);
+    }
+    // 否则重新分配管控中心
+    else {
+        // 新的管控中心的节点个数为原始的节点个数的两倍附加头尾两个节点
+        const size_type new_map_size = map_size_ + tinystl::max(map_size_, nodes_to_add) + 2;
+        map_pointer new_map = allocate_map(new_map_size);
+        new_nstart = new_map + (new_map_size - new_num_nodes) / 2 + (add_at_front ? nodes_to_add : 0);
+        
+        // 将原始的管控中心的节点复制到新的管控中心
+        tinystl::copy(start_.node, finish_.node + 1, new_nstart);
+        // 释放原始的管控中心
+        map_allocator::deallocate(map_, map_size_);
+        // 更新管控中心的指针和节点个数
+        map_ = new_map;
+        map_size_ = new_map_size;
+    }
+
+    // 更新迭代器
+    start_.set_node(new_nstart);
+    finish_.set_node(new_nstart + old_num_nodes - 1);
+}
+
+/// @brief 在头部分配 n 个元素的空间
+/// @tparam T  deque 的元素类型
+/// @param new_elements  需要分配的元素个数
+template <class T>
+inline void deque<T>::new_elements_at_front(size_type new_elements)
+{
+    THROW_LENGTH_ERROR_IF(max_size() - size() < new_elements, "deque<T> too long");
+    const size_type new_nodes = (new_elements + buffer_size - 1) / buffer_size;
+    reserve_map_at_front(new_nodes);
+    size_type i;
+    try {
+        for (i = 1; i <= new_nodes; ++i)
+            *(start_.node - i) = allocate_node();
+    }
+    catch (...) {
+        for (size_type j = 1; j < i; ++j)
+            deallocate_node(*(start_.node - j));
+        throw;
     }
 }
 
+/// @brief 在尾部分配 n 个元素的空间
+/// @tparam T  deque 的元素类型
+/// @param new_elements  需要分配的元素个数
 template <class T>
-void deque<T>::reallocate_map_at_front(size_type need_buffer) {
-    const size_type new_map_size = tinystl::max(map_size_ << 1, map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE);
-    map_pointer new_map = create_map(new_map_size);
-    
-    const size_type old_buffer = finish_.node - start_.node + 1;
-    const size_type new_buffer = old_buffer + need_buffer;
-
-    auto start = new_map + (new_map_size - new_buffer) / 2;  // 新的 start_ 的位置
-    auto mid   = start + need_buffer;  
-    auto finish = mid + old_buffer;
-
-    create_buffer(start, mid - 1);
-
-    for (auto cur = mid, old_cur = start_.node; cur != finish; ++cur, ++old_cur) *cur = *old_cur;
-
-    map_allocator::deallocate(map_, map_size_);
-    map_ = new_map;
-    map_size_ = new_map_size;
-    start_ = iterator(*mid + (start_.cur - start_.first), mid);
-    finish_ = iterator(*(finish - 1) + (finish_.cur - finish_.first), finish - 1);
+inline void deque<T>::new_elements_at_back(size_type new_elements)
+{
+    THROW_LENGTH_ERROR_IF(max_size() - size() < new_elements, "deque<T> too long");
+    const size_type new_nodes = (new_elements + buffer_size - 1) / buffer_size;
+    reserve_map_at_back(new_nodes);
+    size_type i;
+    try {
+        for (i = 1; i <= new_nodes; ++i)
+            *(finish_.node + i) = allocate_node();
+    }
+    catch (...) {
+        for (size_type j = 1; j < i; ++j)
+            deallocate_node(*(finish_.node + j));
+        throw;
+    }
 }
-
-template <class T>
-void deque<T>::reallocate_map_at_back(size_type need_buffer) {
-    const size_type new_map_size = tinystl::max(map_size_ << 1, map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE);
-    map_pointer new_map = create_map(new_map_size);
-    
-    const size_type old_buffer = finish_.node - start_.node + 1;
-    const size_type new_buffer = old_buffer + need_buffer;
-
-    auto start  = new_map + ((new_map_size - new_buffer) / 2);  // 新的 start_ 的位置
-    auto mid    = start + old_buffer;  
-    auto finish = mid + need_buffer;
-
-    for (auto cur = start, old_cur = start_.node; cur != mid; ++cur, ++old_cur) *cur = *old_cur;
-    create_buffer(mid, finish - 1);
-
-    map_allocator::deallocate(map_, map_size_);
-    map_ = new_map;
-    map_size_ = new_map_size;
-    start_ = iterator(*start + (start_.cur - start_.first), start);
-    finish_ = iterator(*(mid - 1) + (finish_.cur - finish_.first), mid - 1);
-}
-
-// TODO: 这两个函数的意思
 
 // =================================== 重载比较运算符 =================================== //
 

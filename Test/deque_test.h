@@ -50,7 +50,7 @@ namespace deque_test {
         FUN_AFTER(d1, d1.push_back(2));                            // 1 8 9 1 2 3 4 5 7 7 6 8 2
         FUN_AFTER(d1, d1.pop_back());                              // 1 8 9 1 2 3 4 5 7 7 6 8
         FUN_AFTER(d1, d1.pop_front());                             // 8 9 1 2 3 4 5 7 7 6 8
-        FUN_AFTER(d1, d1.shrink_to_fit());                         // 8 9 1 2 3 4 5 7 7 6 8
+        // FUN_AFTER(d1, d1.shrink_to_fit());                         // 8 9 1 2 3 4 5 7 7 6 8
         FUN_AFTER(d1, d1.resize(5));                               // 8 9 1 2 3
         FUN_AFTER(d1, d1.resize(8, 8));                            // 8 9 1 2 3 8 8 8
         FUN_AFTER(d1, d1.clear());                                 //
