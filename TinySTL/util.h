@@ -74,10 +74,11 @@ void swap(Tp(&lhs)[N], Tp(&rhs)[N]) {
 
 template <class T1, class T2>
 struct pair {
-    typedef T1 first_type;
-    typedef T2 second_type;
+    typedef T1  first_type;
+    typedef T2  second_type;
 
-    first_type first;
+    // 成员变量
+    first_type  first;
     second_type second;
 
     // 默认构造

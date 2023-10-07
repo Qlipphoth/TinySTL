@@ -87,18 +87,19 @@ struct rb_tree_value_traits {
 
 // =====================================  rb-tree node traits ===================================== //
 
-template <class T>
-struct rb_tree_node_traits {
-    typedef rb_tree_color_type                  color_type;
+// 已弃用
+// template <class T>
+// struct rb_tree_node_traits {
+//     typedef rb_tree_color_type                  color_type;
 
-    typedef rb_tree_value_traits<T>             value_traits;
-    typedef typename value_traits::key_type     key_type;
-    typedef typename value_traits::mapped_type  mapped_type;
-    typedef typename value_traits::value_type   value_type;
+//     typedef rb_tree_value_traits<T>             value_traits;
+//     typedef typename value_traits::key_type     key_type;
+//     typedef typename value_traits::mapped_type  mapped_type;
+//     typedef typename value_traits::value_type   value_type;
 
-    typedef rb_tree_node_base<T>*               base_ptr;
-    typedef rb_tree_node<T>*                    node_ptr;
-};
+//     typedef rb_tree_node_base<T>*               base_ptr;
+//     typedef rb_tree_node<T>*                    node_ptr;
+// };
 
 // =====================================  rb-tree node base ===================================== //
 
@@ -113,19 +114,21 @@ struct rb_tree_node_base {
     base_ptr   right;       // 右子节点
     color_type color;       // 节点颜色
 
-    base_ptr get_base_ptr() {
-        return &*this;
-    }
+    // base_ptr get_base_ptr() {
+    //     return &*this;
+    // }
 
-    node_ptr get_node_ptr() {
-        // return static_cast<node_ptr>(get_base_ptr());  // TODO: 试试 static_cast 行不行
-        return reinterpret_cast<node_ptr>(&*this);
-    }
+    // 已弃用
+    // node_ptr get_node_ptr() {
+    //     // return static_cast<node_ptr>(get_base_ptr());
+    //     return reinterpret_cast<node_ptr>(&*this);
+    // }
 
-    node_ptr& get_node_ref() {
-        // return static_cast<node_ptr&>(*this);
-        return reinterpret_cast<node_ptr&>(*this);
-    }
+    // 已弃用
+    // node_ptr& get_node_ref() {
+    //     // return static_cast<node_ptr&>(*this);
+    //     return reinterpret_cast<node_ptr&>(*this);
+    // }
 };
 
 // =====================================  rb-tree node ===================================== //
@@ -137,13 +140,14 @@ struct rb_tree_node : public rb_tree_node_base<T> {
 
     T value;  // 节点的值
 
-    base_ptr get_base_ptr() {
-        return static_cast<base_ptr>(&*this);
-    }
+    // base_ptr get_base_ptr() {
+    //     return static_cast<base_ptr>(&*this);
+    // }
 
-    node_ptr get_node_ptr() {
-        return &*this;
-    }
+    // 已弃用
+    // node_ptr get_node_ptr() {
+    //     return &*this;
+    // }
 };
 
 // =====================================  rb-tree traits ===================================== //
@@ -231,7 +235,7 @@ struct rb_tree_iterator : public rb_tree_iterator_base<T> {
     typedef typename tree_traits::pointer    pointer;
     typedef typename tree_traits::reference  reference;
     typedef typename tree_traits::base_ptr   base_ptr;
-    typedef typename tree_traits::node_ptr   node_ptr;
+    typedef typename tree_traits::node_ptr   node_ptr;  // link_type
 
     typedef rb_tree_iterator<T>              iterator;
     typedef rb_tree_const_iterator<T>        const_iterator;
@@ -247,8 +251,9 @@ struct rb_tree_iterator : public rb_tree_iterator_base<T> {
     rb_tree_iterator(const const_iterator& rhs) { node = rhs.node; }
 
     // 重载操作符
-    reference operator*() const { return node->get_node_ptr()->value; }  // 获得节点的值
-    pointer operator->() const { return &(operator*()); }                // 获得节点的值的指针
+    // reference operator*() const { return node->get_node_ptr()->value; }  // 获得节点的值
+    reference operator*()  const { return static_cast<node_ptr>(node)->value; }  // 获得节点的值
+    pointer   operator->() const { return &(operator*()); }                       // 获得节点的值的指针
 
     self& operator++() {
         this->inc();
@@ -281,7 +286,7 @@ struct rb_tree_const_iterator : public rb_tree_iterator_base<T> {
     typedef typename tree_traits::const_pointer   pointer;
     typedef typename tree_traits::const_reference reference;
     typedef typename tree_traits::base_ptr        base_ptr;
-    typedef typename tree_traits::node_ptr        node_ptr;
+    typedef typename tree_traits::node_ptr        node_ptr;  // link_type
 
     typedef rb_tree_iterator<T>                   iterator;
     typedef rb_tree_const_iterator<T>             const_iterator;
@@ -297,7 +302,8 @@ struct rb_tree_const_iterator : public rb_tree_iterator_base<T> {
     rb_tree_const_iterator(const const_iterator& rhs) { node = rhs.node; }
 
     // 重载操作符
-    reference operator*()  const { return node->get_node_ptr()->value; }
+    // reference operator*()  const { return node->get_node_ptr()->value; }
+    reference operator*()  const { return static_cast<node_ptr>(node)->value; }
     pointer   operator->() const { return &(operator*()); }
 
     self& operator++() {
@@ -325,14 +331,14 @@ struct rb_tree_const_iterator : public rb_tree_iterator_base<T> {
 
 // =================================== tree-algorithm =================================== //
 
-/// @brief 获得 rb-tree 的最小节点
+/// @brief 查找最小节点
 template <class NodePtr>
 NodePtr rb_tree_min(NodePtr x) noexcept {
     while (x->left != nullptr) x = x->left;
     return x;
 }
 
-/// @brief 获得 rb-tree 的最大节点
+/// @brief 查找最大节点
 template <class NodePtr>
 NodePtr rb_tree_max(NodePtr x) noexcept {
     while (x->right != nullptr) x = x->right;
@@ -431,38 +437,38 @@ void rb_tree_rotate_right(NodePtr x, NodePtr& root) noexcept {
 
 // ================== rb-tree insert ================== //
 // 插入节点后使 rb tree 重新平衡，参数一为新增节点，参数二为根节点
-//
-// case 1: 新增节点位于根节点，令新增节点为黑
-// case 2: 新增节点的父节点为黑，没有破坏平衡，直接返回
-// case 3: 父节点和叔叔节点都为红，令父节点和叔叔节点为黑，祖父节点为红，
-//         然后令祖父节点为当前节点，继续处理
-// case 4: 父节点为红，叔叔节点为 NIL 或黑色，父节点为左（右）孩子，当前节点为右（左）孩子，
-//         让父节点成为当前节点，再以当前节点为支点左（右）旋
-// case 5: 父节点为红，叔叔节点为 NIL 或黑色，父节点为左（右）孩子，当前节点为左（右）孩子，
-//         让父节点变为黑色，祖父节点变为红色，以祖父节点为支点右（左）旋
+// 插入节点分为五种情况：
+
+// 1. 插入节点为根节点，直接将节点颜色置为黑色。
+// 2. 插入节点的父节点为黑色，不需要做任何操作。
+// 3. 插入节点的父节点为红色，需要进行调整。
+//     1. 插入节点的叔叔节点为红色，将父节点和叔叔节点置为黑色，祖父节点置为红色，将祖父节点作为新的插入节点，继续调整（因为此时祖父节点可能也不满足性质 4）。
+//     2. 插入节点的叔叔节点为黑色，且插入节点与父节点同侧（LL/RR），以祖父节点为支点进行反向旋转（R/L），将父节点置为黑色，祖父节点置为红色。
+//     3. 插入节点的叔叔节点为黑色，且插入节点与父节点异侧（LR/RL），以父节点为支点进行反向旋转（L/R），转化为 3.2。
 
 template <class NodePtr>
 void rb_tree_insert_rebalance(NodePtr x, NodePtr& root) noexcept {
     rb_tree_set_red(x);  // 新增节点为红色
+    // 父节点为黑色不用处理，case2
     while (x != root && rb_tree_is_red(x->parent)) {
         // 如果父节点为左子节点
         if (rb_tree_is_lchild(x->parent)) {
             auto uncle = x->parent->parent->right;  // 叔叔节点
-            // case 3: 父节点和叔叔节点都为红
+            // uncle 红色，case3.1
             if (uncle != nullptr && rb_tree_is_red(uncle)) {
                 rb_tree_set_black(x->parent);  // 父节点变为黑色
                 rb_tree_set_black(uncle);      // 叔叔节点变为黑色
-                x = x->parent->parent;         // 祖父节点变为当前节点
                 rb_tree_set_red(x);            // 祖父节点变为红色
+                x = x->parent->parent;         // 祖父节点变为当前节点
             }
             // 无叔叔节点或叔叔节点为黑
             else {
-                // case 4: 父节点为红，叔叔节点为 NIL 或黑色，父节点为左孩子，当前节点为右孩子
+                // LR, case3.3 转化为 case3.2
                 if (!rb_tree_is_lchild(x)) {
                     x = x->parent;                 // 父节点变为当前节点
                     rb_tree_rotate_left(x, root);  // 左旋
                 }
-                // case 5: 父节点为红，叔叔节点为 NIL 或黑色，父节点为左孩子，当前节点为左孩子
+                // case 3.2
                 rb_tree_set_black(x->parent);        // 父节点变为黑色
                 rb_tree_set_red(x->parent->parent);  // 祖父节点变为红色
                 rb_tree_rotate_right(x->parent->parent, root);  // 右旋
@@ -472,7 +478,7 @@ void rb_tree_insert_rebalance(NodePtr x, NodePtr& root) noexcept {
         // 对称处理
         else {
             auto uncle = x->parent->parent->left;    // 叔叔节点
-            // case 3: 父节点和叔叔节点都为红
+            // uncle 红色，case3.1
             if (uncle != nullptr && rb_tree_is_red(uncle)) {
                 rb_tree_set_black(x->parent);  // 父节点变为黑色
                 rb_tree_set_black(uncle);      // 叔叔节点变为黑色
@@ -481,12 +487,12 @@ void rb_tree_insert_rebalance(NodePtr x, NodePtr& root) noexcept {
             }
             // 无叔叔节点或叔叔节点为黑
             else {
-                // case 4: 父节点为红，叔叔节点为 NIL 或黑色，父节点为右孩子，当前节点为左孩子
+                // RL, case3.3 转化为 case3.2
                 if (rb_tree_is_lchild(x)) {
                     x = x->parent;                  // 父节点变为当前节点
                     rb_tree_rotate_right(x, root);  // 右旋
                 }
-                // case 5: 父节点为红，叔叔节点为 NIL 或黑色，父节点为右孩子，当前节点为右孩子
+                // case 3.2
                 rb_tree_set_black(x->parent);        // 父节点变为黑色
                 rb_tree_set_red(x->parent->parent);  // 祖父节点变为红色
                 rb_tree_rotate_left(x->parent->parent, root);  // 左旋
@@ -501,6 +507,13 @@ void rb_tree_insert_rebalance(NodePtr x, NodePtr& root) noexcept {
 // 删除节点后使 rb tree 重新平衡，参数一为要删除的节点，参数二为根节点，参数三为最小节点，参数四为最大节点
 template <class NodePtr>
 NodePtr rb_tree_erase_rebalance(NodePtr z, NodePtr& root, NodePtr& leftmost, NodePtr& rightmost) {
+    
+    // =============================== 1. 找到要删除的节点 =============================== //
+    // 1. 删除只有一个子树的节点：删除原节点，用单独的子节点代替被删除节点。
+    // 2. 删除没有子树的节点：直接删除原节点，相当于用一个空节点 (NIL) 代替了被删除节点。
+    // 3. 删除有两个子树的节点：寻找后继或前继节点（这里选择后继），将待删除节点的值变为后继节点的值，
+    // 再删除后继节点，删除后继节点一定会变成 1 或 2 的情况。
+
     // y 是可能的替换节点，指向最终要删除的节点
     auto y = (z->left == nullptr || z->right == nullptr) ? z : rb_tree_next(z);
     // x 是 y 的一个独子节点或 NIL 节点
@@ -508,7 +521,8 @@ NodePtr rb_tree_erase_rebalance(NodePtr z, NodePtr& root, NodePtr& leftmost, Nod
     // xp 是 x 的父节点
     NodePtr xp = nullptr;
 
-    // y != z 说明 z 有两个非空子节点，此时 y 指向 z 右子树的最左节点，x 指向 y 的右子节点。
+    // case3
+    // y != z 说明 z 有两个非空子节点，此时 y 是 z 的后继节点，x 指向 y 的非空子节点。
     // 用 y 顶替 z 的位置，用 x 顶替 y 的位置，最后用 y 指向 z
     if (y != z) {
         z->left->parent = y;
@@ -534,6 +548,8 @@ NodePtr rb_tree_erase_rebalance(NodePtr z, NodePtr& root, NodePtr& leftmost, Nod
         tinystl::swap(y->color, z->color);
         y = z;
     }
+
+    // case1、case2
     // y == z 说明 z 至多只有一个孩子
     else {
         xp = y->parent;
@@ -549,35 +565,43 @@ NodePtr rb_tree_erase_rebalance(NodePtr z, NodePtr& root, NodePtr& leftmost, Nod
         if (rightmost == z) rightmost = x == nullptr ? xp : rb_tree_max(x);
     }
 
+    // =============================== 2. 调整红黑树 =============================== //
     // 此时，y 指向要删除的节点，x 为替代节点，从 x 节点开始调整。
     // 如果删除的节点为红色，树的性质没有被破坏，否则按照以下情况调整（x 为左子节点为例）：
-    // case 1: 兄弟节点为红色，令父节点为红，兄弟节点为黑，进行左（右）旋，继续处理
-    // case 2: 兄弟节点为黑色，且两个子节点都为黑色或 NIL，令兄弟节点为红，父节点成为当前节点，继续处理
-    // case 3: 兄弟节点为黑色，左子节点为红色或 NIL，右子节点为黑色或 NIL，
-    //         令兄弟节点为红，兄弟节点的左子节点为黑，以兄弟节点为支点右（左）旋，继续处理
-    // case 4: 兄弟节点为黑色，右子节点为红色，令兄弟节点为父节点的颜色，父节点为黑色，兄弟节点的右子节点
-    //         为黑色，以父节点为支点左（右）旋，树的性质调整完成，算法结束
+    // 1. x 为新的根节点，直接将 x 染成黑色，调整结束。
+    // 2. 兄弟节点为红色，令父节点为红，兄弟节点为黑，进行左（右）旋，继续处理。
+    // 3. 父节点为黑色，兄弟节点为黑色，且两个子节点都为黑色或 NIL，令兄弟节点为红，父节点成为当前节点，继续处理。
+    // 4. 父节点为红色，兄弟节点为黑色，且两个子节点都为黑色或 NIL，令兄弟节点为红，算法结束。
+    // 5. 兄弟节点为黑色，右子节点为红色，令兄弟节点为父节点的颜色，父节点为黑色，兄弟节点的右子节点
+    //    为黑色，以父节点为支点左（右）旋，树的性质调整完成，算法结束。
+    // 6. 兄弟节点为黑色，左子节点为红色或 NIL，右子节点为黑色或 NIL，
+    //    令兄弟节点为红，兄弟节点的左子节点为黑，以兄弟节点为支点右（左）旋，继续处理。
+
+    // 仅在删除黑色节点时需要调整
     if (!rb_tree_is_red(y)) {
+        // 注意这里的循环条件: !rb_tree_is_red(x)，当遇到 case3 的情况时会转而处理 P 节点
+        // 此时 p == x，会再进行一次条件判断，当 p 为红色时，便为 case4 的情况
+        // 直接跳出循环，最后将 x 设为黑色，结束调整。
         while (x != root && (x == nullptr || !rb_tree_is_red(x))) {
             if (x == xp->left) {
                 auto brother = xp->right;
-                // case 1
+                // case2：兄弟节点为红色节点，旋转父节点
                 if (rb_tree_is_red(brother)) {
-                    rb_tree_set_black(brother);        // 兄弟节点变为黑色
                     rb_tree_set_red(xp);               // 父节点变为红色
+                    rb_tree_set_black(brother);        // 兄弟节点变为黑色
                     rb_tree_rotate_left(xp, root);     // 左旋
                     brother = xp->right;               // 更新兄弟节点
                 }
-                // case 1 转为为了 case 2、3、4 中的一种
-                // case 2
+                // case3: 兄弟节点及两个子节点均为黑色
                 if ((brother->left == nullptr || !rb_tree_is_red(brother->left)) &&
                     (brother->right == nullptr || !rb_tree_is_red(brother->right))) {
                     rb_tree_set_red(brother);          // 兄弟节点变为红色
                     x = xp;                            // 父节点成为当前节点
                     xp = xp->parent;                   // 父节点的父节点成为父节点
+                    // 此时如果 p 为红色会直接跳出循环
                 }
                 else {
-                    // case 3
+                    // case5: 兄弟节点同侧的节点为黑色
                     if (brother->right == nullptr || !rb_tree_is_red(brother->right)) {
                         if (brother->left != nullptr) 
                             rb_tree_set_black(brother->left);  // 兄弟节点的左子节点变为黑色
@@ -585,7 +609,8 @@ NodePtr rb_tree_erase_rebalance(NodePtr z, NodePtr& root, NodePtr& leftmost, Nod
                         rb_tree_rotate_right(brother, root);   // 右旋
                         brother = xp->right;                   // 更新兄弟节点 
                     }
-                    // 转为 case 4
+                    // 处理之后变为 case6
+                    // case6: 兄弟节点的同侧节点为红色
                     brother->color = xp->color;                // 兄弟节点变为父节点的颜色
                     rb_tree_set_black(xp);                     // 父节点变为黑色
                     if (brother->right != nullptr) 
@@ -630,15 +655,19 @@ NodePtr rb_tree_erase_rebalance(NodePtr z, NodePtr& root, NodePtr& leftmost, Nod
                 }
             }
         }
+        // 将 x 的颜色改为黑色，有可能是 root 节点也有可能是 case4 跳出了循环
         if (x != nullptr) rb_tree_set_black(x);
     }
-    return y;
+    return y;  // 这里返回的值实际上没有用到
+    // 注意：执行完 rb_tree_erase_rebalance 保证了传入的 z，及要被删除的节点，此时一定不在树的结构中了
+    // 这意味着对其进行析构是安全的，不会破坏树的性质。
 }
 
 // ========================================== rb_tree ========================================== //
 
-// 模板类 rb_tree
-// 参数一代表数据类型，参数二代表键值比较类型
+/// @brief 模板类 rb_tree
+/// @tparam T  节点的值类型
+/// @tparam Compare  节点键值比较准则
 template <class T, class Compare>
 class rb_tree {
 
@@ -649,7 +678,7 @@ public:  // rb_tree 的嵌套型别定义
     typedef typename tree_traits::base_type                 base_type;
     typedef typename tree_traits::base_ptr                  base_ptr;
     typedef typename tree_traits::node_type                 node_type;
-    typedef typename tree_traits::node_ptr                  node_ptr;
+    typedef typename tree_traits::node_ptr                  node_ptr;  // link_type
     typedef typename tree_traits::key_type                  key_type;
     typedef typename tree_traits::mapped_type               mapped_type;
     typedef typename tree_traits::value_type                value_type;
@@ -702,19 +731,19 @@ public:  // 构造、复制、析构函数
 public:  // 迭代器相关操作
     iterator                begin()     noexcept        { return leftmost(); }
     const_iterator          begin()     const noexcept  { return leftmost(); }
-    const_iterator          cbegin()    const noexcept  { return begin(); }
+    // const_iterator          cbegin()    const noexcept  { return begin(); }
 
     iterator                end()       noexcept        { return header_; }
     const_iterator          end()       const noexcept  { return header_; }
-    const_iterator          cend()      const noexcept  { return end(); }
+    // const_iterator          cend()      const noexcept  { return end(); }
 
     reverse_iterator        rbegin()    noexcept        { return reverse_iterator(end()); }
     const_reverse_iterator  rbegin()    const noexcept  { return const_reverse_iterator(end()); }
-    const_reverse_iterator  crbegin()   const noexcept  { return rbegin(); }
+    // const_reverse_iterator  crbegin()   const noexcept  { return rbegin(); }
 
     reverse_iterator        rend()      noexcept        { return reverse_iterator(begin()); }
     const_reverse_iterator  rend()      const noexcept  { return const_reverse_iterator(begin()); }
-    const_reverse_iterator  crend()     const noexcept  { return rend(); }
+    // const_reverse_iterator  crend()     const noexcept  { return rend(); }
 
 public:  // 容量相关操作
     bool        empty()     const noexcept  { return node_count_ == 0; }
@@ -939,11 +968,6 @@ rb_tree<T, Compare>::emplace_unique(Args&& ...args) {
     THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Compare>'s size too big");
     node_ptr node = create_node(tinystl::forward<Args>(args)...);
     auto res = get_insert_unique_pos(value_traits::get_key(node->value));
-    
-    // std::cout << "leftmost: " << leftmost()->get_node_ptr()->value << " " << 
-    // "rightmost: " << rightmost()->get_node_ptr()->value << std::endl;
-   
-    // std::cout << "res.second: " << res.second << std::endl;
 
     // 插入成功
     if (res.second) {
@@ -976,7 +1000,9 @@ rb_tree<T, Compare>::emplace_multi_use_hint(iterator hint, Args&& ...args) {
         }
     }
     else if (hint == end()) {
-        if (!key_comp_(key, value_traits::get_key(rightmost()->get_node_ptr()->value))) {
+        // previous : rightmost()->get_node_ptr()->value
+        // now      : static_cast<link_type>(rightmost())->value
+        if (!key_comp_(key, value_traits::get_key(static_cast<node_ptr>(rightmost())->value))) {
             return insert_node_at(rightmost(), node, false);
         }
         else {
@@ -1013,7 +1039,9 @@ rb_tree<T, Compare>::emplace_unique_use_hint(iterator hint, Args&& ...args) {
         }
     }
     else if (hint == end()) {
-        if (key_comp_(value_traits::get_key(rightmost()->get_node_ptr()->value), key)) {
+        // previous : rightmost()->get_node_ptr()->value
+        // now      : static_cast<link_type>(rightmost())->value
+        if (key_comp_(value_traits::get_key(static_cast<node_ptr>(rightmost())->value), key)) {
             return insert_node_at(rightmost(), node, false);
         }
         else {
@@ -1055,7 +1083,8 @@ rb_tree<T, Compare>::insert_unique(const value_type& value) {
 template <class T, class Compare>
 typename rb_tree<T, Compare>::iterator
 rb_tree<T, Compare>::erase(iterator hint) {
-    auto node = hint.node->get_node_ptr();
+    // auto node = hint.node->get_node_ptr();
+    auto node = static_cast<node_ptr>(hint.node);
     iterator next(node);
     ++next;
     // 重新平衡
@@ -1114,7 +1143,10 @@ rb_tree<T, Compare>::find(const key_type& key) {
     auto x = root();   // 当前节点
     while (x != nullptr) {
         // key 小于等于 x 键值，向左走
-        if (!key_comp_(value_traits::get_key(x->get_node_ptr()->value), key)) {
+
+        // previous : x->get_node_ptr()->value
+        // now      : static_cast<link_type>(x)->value
+        if (!key_comp_(value_traits::get_key(static_cast<node_ptr>(x)->value), key)) {
             y = x;
             x = x->left;
         }
@@ -1134,7 +1166,10 @@ rb_tree<T, Compare>::find(const key_type& key) const {
     auto x = root();   // 当前节点
     while (x != nullptr) {
         // key 小于等于 x 键值，向左走
-        if (!key_comp_(value_traits::get_key(x->get_node_ptr()->value), key)) {
+
+        // previous : x->get_node_ptr()->value
+        // now      : static_cast<link_type>(x)->value
+        if (!key_comp_(value_traits::get_key(static_cast<node_ptr>(x)->value), key)) {
             y = x;
             x = x->left;
         }
@@ -1154,7 +1189,10 @@ rb_tree<T, Compare>::lower_bound(const key_type& key) {
     auto x = root();   // 当前节点
     while (x != nullptr) {
         // key 小于等于 x 键值，向左走
-        if (!key_comp_(value_traits::get_key(x->get_node_ptr()->value), key)) {
+
+        // previous : x->get_node_ptr()->value
+        // now      : static_cast<link_type>(x)->value
+        if (!key_comp_(value_traits::get_key(static_cast<node_ptr>(x)->value), key)) {
             y = x;
             x = x->left;
         }
@@ -1171,7 +1209,10 @@ rb_tree<T, Compare>::lower_bound(const key_type& key) const {
     auto x = root();   // 当前节点
     while (x != nullptr) {
         // key 小于等于 x 键值，向左走
-        if (!key_comp_(value_traits::get_key(x->get_node_ptr()->value), key)) {
+
+        // previous : x->get_node_ptr()->value
+        // now      : static_cast<link_type>(x)->value
+        if (!key_comp_(value_traits::get_key(static_cast<node_ptr>(x)->value), key)) {
             y = x;
             x = x->left;
         }
@@ -1188,7 +1229,10 @@ rb_tree<T, Compare>::upper_bound(const key_type& key) {
     auto x = root();   // 当前节点
     while (x != nullptr) {
         // key 小于 x 键值，向左走
-        if (key_comp_(key, value_traits::get_key(x->get_node_ptr()->value))) {
+
+        // previous : x->get_node_ptr()->value
+        // now      : static_cast<link_type>(x)->value
+        if (key_comp_(key, value_traits::get_key(static_cast<node_ptr>(x)->value))) {
             y = x;
             x = x->left;
         }
@@ -1205,7 +1249,10 @@ rb_tree<T, Compare>::upper_bound(const key_type& key) const {
     auto x = root();   // 当前节点
     while (x != nullptr) {
         // key 小于 x 键值，向左走
-        if (key_comp_(key, value_traits::get_key(x->get_node_ptr()->value))) {
+
+        // previous : x->get_node_ptr()->value
+        // now      : static_cast<link_type>(x)->value
+        if (key_comp_(key, value_traits::get_key(static_cast<node_ptr>(x)->value))) {
             y = x;
             x = x->left;
         }
@@ -1250,7 +1297,8 @@ rb_tree<T, Compare>::create_node(Args&& ...args) {
 template <class T, class Compare>
 typename rb_tree<T, Compare>::node_ptr
 rb_tree<T, Compare>::clone_node(base_ptr x) {
-    auto tmp = create_node(x->get_node_ptr()->value);
+    // auto tmp = create_node(x->get_node_ptr()->value);
+    auto tmp = create_node(static_cast<node_ptr>(x)->value);
     tmp->color = x->color;
     tmp->left = nullptr;
     tmp->right = nullptr;
@@ -1292,7 +1340,10 @@ rb_tree<T, Compare>::get_insert_multi_pos(const key_type& key) {
     bool add_to_left = true;
     while (x != nullptr) {
         y = x;
-        add_to_left = key_comp_(key, value_traits::get_key(x->get_node_ptr()->value));
+
+        // previous : x->get_node_ptr()->value
+        // now      : static_cast<link_type>(x)->value
+        add_to_left = key_comp_(key, value_traits::get_key(static_cast<node_ptr>(x)->value));
         x = add_to_left ? x->left : x->right;
     }
     return tinystl::make_pair(y, add_to_left);
@@ -1308,7 +1359,10 @@ rb_tree<T, Compare>::get_insert_unique_pos(const key_type& key) {
     bool add_to_left = true;  // 树为空时也在 header_ 左边插入
     while (x != nullptr) {
         y = x;
-        add_to_left = key_comp_(key, value_traits::get_key(x->get_node_ptr()->value));
+
+        // previous : x->get_node_ptr()->value
+        // now      : static_cast<link_type>(x)->value
+        add_to_left = key_comp_(key, value_traits::get_key(static_cast<node_ptr>(x)->value));
         x = add_to_left ? x->left : x->right;
     }
     iterator it(y);  // y 为插入点的父节点
@@ -1339,7 +1393,8 @@ typename rb_tree<T, Compare>::iterator
 rb_tree<T, Compare>::insert_value_at(base_ptr x, const value_type& value, bool add_to_left) {
     node_ptr node = create_node(value);
     node->parent = x;
-    auto base_node = node->get_base_ptr();
+    // auto base_node = node->get_base_ptr();
+    auto base_node = static_cast<base_ptr>(node);
     if (x == header_) {
         root() = base_node;
         leftmost() = base_node;
@@ -1361,10 +1416,10 @@ rb_tree<T, Compare>::insert_value_at(base_ptr x, const value_type& value, bool a
 /// @brief 在 x 位置插入 node 节点，add_to_left 表示是否在左侧插入
 template <class T, class Compare>
 typename rb_tree<T, Compare>::iterator
-rb_tree<T, Compare>::
-insert_node_at(base_ptr x, node_ptr node, bool add_to_left) {
+rb_tree<T, Compare>::insert_node_at(base_ptr x, node_ptr node, bool add_to_left) {
     node->parent = x;
-    auto base_node = node->get_base_ptr();
+    // auto base_node = node->get_base_ptr();
+    auto base_node = static_cast<base_ptr>(node);
     if (x == header_) {
         root() = base_node;
         leftmost() = base_node;
@@ -1469,7 +1524,8 @@ void rb_tree<T, Compare>::erase_since(base_ptr x) {
     while (x != nullptr) {
         erase_since(x->right);
         auto y = x->left;
-        destroy_node(x->get_node_ptr());
+        // destroy_node(x->get_node_ptr());
+        destroy_node(static_cast<node_ptr>(x));
         x = y;
     }
 }

@@ -18,8 +18,10 @@
 namespace tinystl {
 
 // ============================================ set ============================================ //
-// 模板类 set，键值不允许重复
-// 参数一代表键值类型，参数二代表键值比较方式，缺省使用 tinystl::less
+
+/// @brief 模板类 set，键值不允许重复
+/// @tparam Key  键值类型
+/// @tparam Compare  键值比较方式，缺省使用 tinystl::less
 template <class Key, class Compare = tinystl::less<Key>>
 class set {
 
@@ -92,7 +94,7 @@ public:  // 迭代器相关操作
     const_iterator         begin()   const noexcept { return tree_.begin(); }
     iterator               end()           noexcept { return tree_.end(); }
     const_iterator         end()     const noexcept { return tree_.end(); }
-    reverse_iterator       rbegin()        noexcept { return tree_.crbegin(); }  // TODO: 理解这里的转换关系
+    reverse_iterator       rbegin()        noexcept { return tree_.crbegin(); }
     const_reverse_iterator rbegin()  const noexcept { return tree_.crbegin(); }
     reverse_iterator       rend()          noexcept { return tree_.rend(); }
     const_reverse_iterator rend()    const noexcept { return tree_.rend(); }
@@ -211,8 +213,10 @@ void swap(set<Key, Compare>& lhs, set<Key, Compare>& rhs) noexcept {
 
 
 // ============================================ multiset ============================================ //
-// 模板类 multiset，键值允许重复
-// 参数一代表键值类型，参数二代表键值比较方式，缺省使用 mystl::less 
+
+/// @brief 模板类 multiset，键值允许重复
+/// @tparam Key  键值类型
+/// @tparam Compare  键值比较方式，缺省使用 tinystl::less
 template <class Key, class Compare = tinystl::less<Key>>
 class multiset {
 
