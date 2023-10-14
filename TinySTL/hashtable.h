@@ -181,7 +181,7 @@ struct ht_iterator : public ht_iterator_base<T, Hash, KeyEqual> {
     }
 
     // 重载操作符
-    reference operator*()  const { return node->value; }  // TODO: 这样做不会导致循环引用吗？
+    reference operator*()  const { return node->value; }
     pointer   operator->() const { return &(operator*()); }
 
     iterator& operator++() {
@@ -280,6 +280,7 @@ struct ht_const_iterator : public ht_iterator_base<T, Hash, KeyEqual> {
 
 // ======================================= local_iterator ====================================== //
 // 用于遍历一个特定 bucket 内的元素
+// 2023.10.12: 已弃用
 
 template <class T>
 struct ht_local_iterator :public tinystl::iterator<tinystl::forward_iterator_tag, T> {
@@ -548,9 +549,12 @@ public:  // 构造、复制、移动、析构函数
     hashtable& operator=(const hashtable& rhs);
     hashtable& operator=(hashtable&& rhs) noexcept;
 
-    ~hashtable() { clear(); }
+    ~hashtable() { 
+        clear(); 
 
-public:  // 迭代器相关操作
+    }
+
+public:  // 迭代器相关
     iterator begin() noexcept { return M_begin(); }
     const_iterator begin() const noexcept { return M_begin(); }
     const_iterator cbegin() const noexcept { return M_begin(); }
@@ -559,7 +563,7 @@ public:  // 迭代器相关操作
     const_iterator end() const noexcept { return M_cit(nullptr); }
     const_iterator cend() const noexcept { return M_cit(nullptr); }
 
-public:  // 容量相关操作
+public:  // 容量相关
     bool      empty()    const noexcept { return size_ == 0; }
     size_type size()     const noexcept { return size_; }
     size_type max_size() const noexcept { return static_cast<size_type>(-1); }
@@ -655,35 +659,35 @@ public:  // 查找相关操作
 public:  // bucket 操作
     // 同名函数均用 size_type 作为参数，实现重载
 
-    local_iterator begin(size_type n) noexcept {
-        TINYSTL_DEBUG(n < size_);
-        return local_iterator(buckets_[n]);
-    }
+    // local_iterator begin(size_type n) noexcept {
+    //     TINYSTL_DEBUG(n < size_);
+    //     return local_iterator(buckets_[n]);
+    // }
 
-    const_local_iterator begin(size_type n) const noexcept {
-        TINYSTL_DEBUG(n < size_);
-        return const_local_iterator(buckets_[n]);
-    }
+    // const_local_iterator begin(size_type n) const noexcept {
+    //     TINYSTL_DEBUG(n < size_);
+    //     return const_local_iterator(buckets_[n]);
+    // }
 
-    const_local_iterator cbegin(size_type n) const noexcept {
-        TINYSTL_DEBUG(n < size_);
-        return const_local_iterator(buckets_[n]);
-    }
+    // const_local_iterator cbegin(size_type n) const noexcept {
+    //     TINYSTL_DEBUG(n < size_);
+    //     return const_local_iterator(buckets_[n]);
+    // }
 
-    local_iterator end(size_type n) noexcept {
-        TINYSTL_DEBUG(n < size_);
-        return nullptr;
-    }
+    // local_iterator end(size_type n) noexcept {
+    //     TINYSTL_DEBUG(n < size_);
+    //     return nullptr;
+    // }
 
-    const_local_iterator end(size_type n) const noexcept {
-        TINYSTL_DEBUG(n < size_);
-        return nullptr;
-    }
+    // const_local_iterator end(size_type n) const noexcept {
+    //     TINYSTL_DEBUG(n < size_);
+    //     return nullptr;
+    // }
 
-    const_local_iterator cend(size_type n) const noexcept {
-        TINYSTL_DEBUG(n < size_);
-        return nullptr;
-    }
+    // const_local_iterator cend(size_type n) const noexcept {
+    //     TINYSTL_DEBUG(n < size_);
+    //     return nullptr;
+    // }
 
     
     size_type bucket_count() const noexcept { return bucket_size_; }
@@ -787,11 +791,11 @@ hashtable<T, Hash, KeyEqual>::emplace_multi(Args&&... args) {
     auto np = create_node(tinystl::forward<Args>(args)...);
     try {
         if (static_cast<float>(size_ + 1) > static_cast<float>(bucket_size_) * max_load_factor()) {
-            rehash_if_need(size_ + 1);
+            rehash(size_ + 1);
         }
     }
     catch (...) {
-        destroy_node(np);
+        destroy_node(np); 
         throw;
     }
     return insert_node_multi(np);
@@ -805,7 +809,7 @@ hashtable<T, Hash, KeyEqual>::emplace_unique(Args&&... args) {
     auto np = create_node(tinystl::forward<Args>(args)...);
     try {
         if (static_cast<float>(size_ + 1) > static_cast<float>(bucket_size_) * max_load_factor()) {
-            rehash_if_need(size_ + 1);
+            rehash(size_ + 1);
         }
     }
     catch (...) {
@@ -895,7 +899,7 @@ void hashtable<T, Hash, KeyEqual>::erase(const_iterator first, const_iterator la
     if (first.node == last.node) return;
     auto first_bucket = first.node
         ? hash(value_traits::get_key(first.node->value))
-        : bucket_size_;  // TODO: 理解这里的写法
+        : bucket_size_;
     auto last_bucket = last.node
         ? hash(value_traits::get_key(last.node->value))
         : bucket_size_;
@@ -1042,7 +1046,7 @@ hashtable<T, Hash, KeyEqual>::equal_range_multi(const key_type& key) {
                     return tinystl::make_pair(iterator(first, this), iterator(cur, this));
                 }
             }
-            // 当前桶直到最后一个元素都相等，查找下一个不为空的桶
+            // 当前桶直到最后一个元素都相等，返回的区间的尾部指向下一个不为空的桶
             for (size_type m = n + 1; m < bucket_size_; ++m) {
                 if (buckets_[m]) {
                     return tinystl::make_pair(iterator(first, this), iterator(buckets_[m], this));
@@ -1357,7 +1361,7 @@ void hashtable<T, Hash, KeyEqual>::replace_bucket(size_type bucket_count) {
                         tmp->next = cur->next;
                         cur->next = tmp;
                         is_inserted = true;
-                        break;  // TODO: 这样做不会导致多一个节点吗？
+                        break;
                     }
                 }
                 // 如果没有找到相同键值的节点，就插入到链表头部

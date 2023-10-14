@@ -731,19 +731,19 @@ public:  // 构造、复制、析构函数
 public:  // 迭代器相关操作
     iterator                begin()     noexcept        { return leftmost(); }
     const_iterator          begin()     const noexcept  { return leftmost(); }
-    // const_iterator          cbegin()    const noexcept  { return begin(); }
+    const_iterator          cbegin()    const noexcept  { return begin(); }
 
     iterator                end()       noexcept        { return header_; }
     const_iterator          end()       const noexcept  { return header_; }
-    // const_iterator          cend()      const noexcept  { return end(); }
+    const_iterator          cend()      const noexcept  { return end(); }
 
     reverse_iterator        rbegin()    noexcept        { return reverse_iterator(end()); }
     const_reverse_iterator  rbegin()    const noexcept  { return const_reverse_iterator(end()); }
-    // const_reverse_iterator  crbegin()   const noexcept  { return rbegin(); }
+    const_reverse_iterator  crbegin()   const noexcept  { return rbegin(); }
 
     reverse_iterator        rend()      noexcept        { return reverse_iterator(begin()); }
     const_reverse_iterator  rend()      const noexcept  { return const_reverse_iterator(begin()); }
-    // const_reverse_iterator  crend()     const noexcept  { return rend(); }
+    const_reverse_iterator  crend()     const noexcept  { return rend(); }
 
 public:  // 容量相关操作
     bool        empty()     const noexcept  { return node_count_ == 0; }

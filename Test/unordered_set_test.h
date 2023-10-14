@@ -64,7 +64,7 @@ void unordered_set_test() {
     FUN_VALUE(us1.max_size());
     FUN_VALUE(us1.bucket_count());
     FUN_AFTER(us1, us1.reserve(1000));
-    FUN_VALUE(*us1.begin(us1.bucket(1)));
+    // FUN_VALUE(*us1.begin(us1.bucket(1)));
     FUN_VALUE(us1.size());
     FUN_VALUE(us1.bucket_count());
     FUN_VALUE(us1.bucket_size(1));
@@ -147,7 +147,7 @@ void unordered_multiset_test() {
     FUN_VALUE(us1.max_size());
     FUN_VALUE(us1.bucket_count());
     FUN_AFTER(us1, us1.reserve(1000));
-    FUN_VALUE(*us1.begin(us1.bucket(1)));
+    // FUN_VALUE(*us1.begin(us1.bucket(1)));
     FUN_VALUE(us1.size());
     FUN_VALUE(us1.bucket_count());
     FUN_VALUE(us1.bucket_size(1));
