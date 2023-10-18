@@ -48,6 +48,7 @@ public:   // 使用 hashtable 的型别定义
     allocator_type get_allocator() const { return ht_.get_allocator(); }
 
 public:  // 构造、复制、移动、析构函数
+    // 缺省使用 100 个桶，会被 hashtable 自动调整为最接近且较大的质数
     unordered_set(): ht_(100, Hash(), KeyEqual()) {}
 
     explicit unordered_set(size_type bucket_count, const Hash& hash = Hash(),
@@ -114,6 +115,7 @@ public:  // 容量相关
     size_type       max_size()const noexcept { return ht_.max_size(); }
 
 public:  // 修改容器相关
+    // 插入操作全部使用 unique 操作，键值不允许重复
     template <class... Args>
     tinystl::pair<iterator, bool> emplace(Args&&... args) {
         return ht_.emplace_unique(tinystl::forward<Args>(args)...);

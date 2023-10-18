@@ -49,6 +49,12 @@ void destroy_one(Ty* pointer, std::false_type) {
     }
 }
 
+template <class Ty>
+void destroy(Ty* pointer);
+
+template <class ForwardIterator>
+void destroy(ForwardIterator first, ForwardIterator last);
+
 // 平凡析构，不做任何处理
 template <class ForwardIterator>
 void destroy_cat(ForwardIterator, ForwardIterator, std::true_type) {}

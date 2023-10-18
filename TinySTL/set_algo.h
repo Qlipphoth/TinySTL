@@ -126,14 +126,17 @@ OutputIterator set_difference(InputIterator1 first1, InputIterator1 last1,
                               InputIterator2 first2, InputIterator2 last2, 
                               OutputIterator result) {
     while (first1 != last1 && first2 != last2) {
+        // 只有 *first1 < *first2 才能确保这个元素在 S1 中有而 S2 中没有
         if (*first1 < *first2) {
             *result = *first1;
             ++first1;
             ++result;
         } 
+        // 否则与 S2 的下一个元素继续比较
         else if (*first2 < *first1) {
             ++first2;
         }
+        // 相等则说明这个元素在 S1 和 S2 中都有，不是 S1-S2 的元素
         else {
             ++first1;
             ++first2;

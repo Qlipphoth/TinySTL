@@ -49,6 +49,7 @@ OutputIterator adjacent_difference(InputIterator first,
         *++result = tmp - value;
         value = tmp;
     }
+    // 符合前闭后开的规则
     return ++result;
 }
 
@@ -64,6 +65,7 @@ OutputIterator adjacent_difference(InputIterator first,
         *++result = binary_op(tmp, value);
         value = tmp;
     }
+    // 符合前闭后开的规则
     return ++result;
 }
 

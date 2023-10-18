@@ -4,6 +4,7 @@
 // 这个头文件包含了 tinystl 的基本算法
 
 #include <cstring>      // memmove
+#include <iostream>
 
 #include "iterator.h"
 #include "util.h"
@@ -62,50 +63,170 @@ void iter_swap(ForwardIterator1 lhs, ForwardIterator2 rhs) {
 // ========================== copy ========================== //
 // copy: 将 [first, last) 区间内的元素拷贝到 [result, result + (last - first)) 区间内
 
-// input_iterator_tag 版本
+// 已弃用
+
+// // input_iterator_tag 版本
+// template <class InputIterator, class OutputIterator>
+// OutputIterator unchecked_copy_cat(InputIterator first, InputIterator last, 
+//     OutputIterator result, tinystl::input_iterator_tag) {
+//     for (; first != last; ++first, ++result) {
+//         *result = *first;
+//     }
+//     return result;
+// }
+
+// // random_access_iterator_tag 版本
+// template <class RandomAccessIterator, class OutputIterator>
+// OutputIterator unchecked_copy_cat(RandomAccessIterator first, RandomAccessIterator last, 
+//     OutputIterator result, tinystl::random_access_iterator_tag) {
+//     for (auto n = last - first; n > 0; --n, ++first, ++result) {
+//         *result = *first;
+//     }
+//     return result;
+// }
+
+// template <class InputIterator, class OutputIterator>
+// OutputIterator unchecked_copy(InputIterator first, InputIterator last, 
+//     OutputIterator result) {
+//     return unchecked_copy_cat(first, last, result, iterator_category(first));
+// }
+
+// // 为 trivally_copy_assignable 类型提供特化版本
+// template <class Tp, class Up>
+// typename std::enable_if<
+//     std::is_same<typename std::remove_const<Tp>::type, Up>::value &&
+//     std::is_trivially_copy_assignable<Up>::value,
+//     Up*>::type
+// unchecked_copy(Tp* first, Tp* last, Up* result) {
+//     const auto n = static_cast<size_t>(last - first);
+//     if (n != 0) {
+//         std::memmove(result, first, n * sizeof(Up));
+//     }
+//     return result + n;
+// }
+
+// template <class InputIterator, class OutputIterator>
+// OutputIterator copy(InputIterator first, InputIterator last, 
+//     OutputIterator result) {
+//     return unchecked_copy(first, last, result);
+// }
+
 template <class InputIterator, class OutputIterator>
-OutputIterator unchecked_copy_cat(InputIterator first, InputIterator last, 
+OutputIterator __copy_dispatch(InputIterator first, InputIterator last, OutputIterator result);
+
+template <class T>
+T* __copy_dispatch(T* first, T* last, T* result);
+
+template <class T>
+T* __copy_dispatch(const T* first, const T* last, T* result);
+
+template <class InputIterator, class OutputIterator>
+OutputIterator __copy(InputIterator first, InputIterator last, 
+    OutputIterator result, tinystl::input_iterator_tag);
+
+template <class RandomAccessIterator, class OutputIterator>
+OutputIterator __copy(RandomAccessIterator first, RandomAccessIterator last, 
+    OutputIterator result, tinystl::random_access_iterator_tag);
+
+template <class RandomAccessIterator, class OutputIterator, class Distance>
+OutputIterator __copy_d(RandomAccessIterator first, RandomAccessIterator last, 
+    OutputIterator result, Distance*);
+
+template <class T>
+T* __copy_t(const T* first, const T* last, T* result, std::true_type);
+
+template <class T>
+T* __copy_t(const T* first, const T* last, T* result, std::false_type);
+
+
+/// @brief 完全泛化版本 copy
+template <class InputIterator, class OutputIterator>
+OutputIterator copy(InputIterator first, InputIterator last, OutputIterator result) {
+    std::cout << "copy" << std::endl;
+    return __copy_dispatch(first, last, result);
+}
+
+/// @brief 特殊版本（1），针对 char* 的特化
+char* copy(const char* first, const char* last, char* result) {
+    std::memmove(result, first, last - first);
+    std::cout << "char* copy" << std::endl;
+    return result + (last - first);
+}
+
+/// @brief 特殊版本（2），针对 wchar_t* 的特化
+wchar_t* copy(const wchar_t* first, const wchar_t* last, wchar_t* result) {
+    std::memmove(result, first, sizeof(wchar_t) * (last - first));
+    std::cout << "wchar_t* copy" << std::endl;
+    return result + (last - first);
+}
+
+/// @brief copy_dispatch 的完全泛化版本
+template <class InputIterator, class OutputIterator>
+OutputIterator __copy_dispatch(InputIterator first, InputIterator last, OutputIterator result) {
+    std::cout << "InputIterator __copy_dispatch" << std::endl;
+    return __copy(first, last, result, iterator_category(first));
+};
+
+/// @brief copy_dispatch 的偏特化版本（1），针对 T*
+template <class T>
+T* __copy_dispatch(T* first, T* last, T* result) {
+    using trivial = typename std::is_trivially_copy_assignable<T>::type;
+    std::cout << "T* __copy_dispatch" << std::endl;
+    return __copy_t(first, last, result, trivial());
+};
+
+/// @brief copy_dispatch 的偏特化版本（2），针对 const T*
+template <class T>
+T* __copy_dispatch(const T* first, const T* last, T* result) {
+    using trivial = typename std::is_trivially_copy_assignable<T>::type;
+    std::cout << "const T* __copy_dispatch" << std::endl;
+    return __copy_t(first, last, result, trivial());
+};
+
+/// @brief __copy 的 InputIterator 的版本，以迭代器是否相等作为循环结束的条件，效率较低
+template <class InputIterator, class OutputIterator>
+OutputIterator __copy(InputIterator first, InputIterator last, 
     OutputIterator result, tinystl::input_iterator_tag) {
     for (; first != last; ++first, ++result) {
         *result = *first;
     }
+    std::cout << "input_iterator_tag __copy" << std::endl;
     return result;
 }
 
-// random_access_iterator_tag 版本
+/// @brief __copy 的 RandomAccessIterator 的版本，以 n 作为循环结束的条件，效率较高
 template <class RandomAccessIterator, class OutputIterator>
-OutputIterator unchecked_copy_cat(RandomAccessIterator first, RandomAccessIterator last, 
+OutputIterator __copy(RandomAccessIterator first, RandomAccessIterator last, 
     OutputIterator result, tinystl::random_access_iterator_tag) {
-    for (auto n = last - first; n > 0; --n, ++first, ++result) {
+    // 又划分出一个函数，为的是其他地方也可以用到
+    std::cout << "random_access_iterator_tag __copy" << std::endl;
+    return __copy_d(first, last, result, distance_type(first));
+}
+
+/// @brief 针对原生 non_trivally_copy_assignable 指针 和 RandomAccessIterator 的版本
+template <class RandomAccessIterator, class OutputIterator, class Distance>
+OutputIterator __copy_d(RandomAccessIterator first, RandomAccessIterator last, 
+    OutputIterator result, Distance*) {
+    for (Distance n = last - first; n > 0; --n, ++first, ++result) {
         *result = *first;
     }
+    std::cout << "__copy_d" << std::endl;
     return result;
 }
 
-template <class InputIterator, class OutputIterator>
-OutputIterator unchecked_copy(InputIterator first, InputIterator last, 
-    OutputIterator result) {
-    return unchecked_copy_cat(first, last, result, iterator_category(first));
+/// @brief __copy_t 针对 trivally_copy_assignable 类型的版本
+template <class T>
+T* __copy_t(const T* first, const T* last, T* result, std::true_type) {
+    std::memmove(result, first, sizeof(T) * (last - first));
+    std::cout << "T* trivally_copy_assignable __copy_t" << std::endl;
+    return result + (last - first);
 }
 
-// 为 trivally_copy_assignable 类型提供特化版本
-template <class Tp, class Up>
-typename std::enable_if<
-    std::is_same<typename std::remove_const<Tp>::type, Up>::value &&
-    std::is_trivially_copy_assignable<Up>::value,
-    Up*>::type
-unchecked_copy(Tp* first, Tp* last, Up* result) {
-    const auto n = static_cast<size_t>(last - first);
-    if (n != 0) {
-        std::memmove(result, first, n * sizeof(Up));
-    }
-    return result + n;
-}
-
-template <class InputIterator, class OutputIterator>
-OutputIterator copy(InputIterator first, InputIterator last, 
-    OutputIterator result) {
-    return unchecked_copy(first, last, result);
+/// @brief __copy_t 针对 non_trivally_copy_assignable 类型的版本
+template <class T>
+T* __copy_t(const T* first, const T* last, T* result, std::false_type) {
+    std::cout << "T* non_trivally_copy_assignable __copy_t" << std::endl;
+    return __copy_d(first, last, result, static_cast<ptrdiff_t*>(nullptr));
 }
 
 
