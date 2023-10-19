@@ -542,6 +542,7 @@ ForwardIterator ubound_dispatch(ForwardIterator first, ForwardIterator last,
         half = len >> 1;
         middle = first;
         tinystl::advance(middle, half);
+        // 注意这里的条件
         if (value < *middle) len = half;
         else {
             first = middle;
@@ -647,25 +648,149 @@ bool binary_search(ForwardIterator first, ForwardIterator last, const T& value, 
 // 查找[first,last)区间中与 value 相等的元素所形成的区间，返回一对迭代器指向区间首尾
 // 第一个迭代器指向第一个不小于 value 的元素，第二个迭代器指向第一个大于 value 的元素
 // 我觉得直接调用 lbound 和 ubound 就可以了，为什么还要先找到中间元素呢
-// TODO: 讲解二分与这里的做法
+// 2023.10.18：因为快.jpg
 /*****************************************************************************************/
+
+// 已弃用
+// /// @brief 查找[first,last)区间中与 value 相等的元素所形成的区间，返回一对迭代器指向区间首尾
+// template <class ForwardIterator, class T>
+// tinystl::pair<ForwardIterator, ForwardIterator>
+// equal_range(ForwardIterator first, ForwardIterator last, const T& value) {
+//     return tinystl::pair<ForwardIterator, ForwardIterator>(
+//         tinystl::lower_bound(first, last, value),
+//         tinystl::upper_bound(first, last, value));
+// }
+
+// /// @brief 重载版本使用函数对象 comp 代替比较操作
+// template <class ForwardIterator, class T, class Compare>
+// tinystl::pair<ForwardIterator, ForwardIterator>
+// equal_range(ForwardIterator first, ForwardIterator last, const T& value, Compare comp) {
+//     return tinystl::pair<ForwardIterator, ForwardIterator>(
+//         tinystl::lower_bound(first, last, value, comp),
+//         tinystl::upper_bound(first, last, value, comp));
+// }
+
+/// @brief ForwardIterator 版本
+template <class ForwardIterator, class T>
+tinystl::pair<ForwardIterator, ForwardIterator>
+erange_dispatch(ForwardIterator first, ForwardIterator last, const T& value, forward_iterator_tag) {
+    auto len = tinystl::distance(first, last);
+    auto half = len;
+    ForwardIterator middle, left, right;
+    while (len > 0) {
+        // Start
+        half = len >> 1;
+        middle = first;
+        tinystl::advance(middle, half);
+        if (*middle < value) {
+            first = middle;
+            ++first;
+            len = len - half - 1;
+        }
+        else if (value < *middle) len = half;
+        //  End
+        // 以上相当于先做了一次二分查找，确定 value 在大概哪个区间内，再在子区间上做二分查找
+        // 相比于直接在整个区间上搜 lower_bound 与 upper_bound 会节省很多操作
+
+        // 在子区间上做二分查找
+        else {
+            left = tinystl::lower_bound(first, middle, value);
+            tinystl::advance(first, len);
+            right = tinystl::upper_bound(++middle, first, value);
+            return tinystl::pair<ForwardIterator, ForwardIterator>(left, right);
+        }
+    }
+    return tinystl::pair<ForwardIterator, ForwardIterator>(first, first);
+}
+
+/// @brief RandomAccessIterator 版本
+template <class RandomAccessIterator, class T>
+tinystl::pair<RandomAccessIterator, RandomAccessIterator>
+erange_dispatch(RandomAccessIterator first, RandomAccessIterator last, 
+    const T& value, random_access_iterator_tag) {
+    auto len = last - first;
+    auto half = len;
+    RandomAccessIterator middle, left, right;
+    while (len > 0) {
+        half = len >> 1;
+        middle = first + half;
+        if (*middle < value) {
+            first = middle + 1;
+            len = len - half - 1;
+        }
+        else if (value < *middle) len = half;
+        else {
+            left = tinystl::lower_bound(first, middle, value);
+            right = tinystl::upper_bound(++middle, first + len, value);
+            return tinystl::pair<RandomAccessIterator, RandomAccessIterator>(left, right);
+        }
+    }
+    return tinystl::pair<RandomAccessIterator, RandomAccessIterator>(first, first);
+}
 
 /// @brief 查找[first,last)区间中与 value 相等的元素所形成的区间，返回一对迭代器指向区间首尾
 template <class ForwardIterator, class T>
 tinystl::pair<ForwardIterator, ForwardIterator>
 equal_range(ForwardIterator first, ForwardIterator last, const T& value) {
-    return tinystl::pair<ForwardIterator, ForwardIterator>(
-        tinystl::lower_bound(first, last, value),
-        tinystl::upper_bound(first, last, value));
+    return tinystl::erange_dispatch(first, last, value, iterator_category(first));
 }
 
-/// @brief 重载版本使用函数对象 comp 代替比较操作
+template <class ForwardIterator, class T, class Compare>
+tinystl::pair<ForwardIterator, ForwardIterator>
+erange_dispatch(ForwardIterator first, ForwardIterator last, 
+    const T& value, forward_iterator_tag, Compare comp) {
+    auto len = tinystl::distance(first, last);
+    auto half = len;
+    ForwardIterator middle, left, right;
+    while (len > 0) {
+        half = len >> 1;
+        middle = first;
+        tinystl::advance(middle, half);
+        if (comp(*middle, value)) {
+            first = middle;
+            ++first;
+            len = len - half - 1;
+        }
+        else if (comp(value, *middle)) len = half;
+        else {
+            left = tinystl::lower_bound(first, middle, value, comp);
+            tinystl::advance(first, len);
+            right = tinystl::upper_bound(++middle, first, value, comp);
+            return tinystl::pair<ForwardIterator, ForwardIterator>(left, right);
+        }
+    }
+    return tinystl::pair<ForwardIterator, ForwardIterator>(first, first);
+}
+
+template <class RandomAccessIterator, class T, class Compare>
+tinystl::pair<RandomAccessIterator, RandomAccessIterator>
+erange_dispatch(RandomAccessIterator first, RandomAccessIterator last, 
+    const T& value, random_access_iterator_tag, Compare comp) {
+    auto len = last - first;
+    auto half = len;
+    RandomAccessIterator middle, left, right;
+    while (len > 0) {
+        half = len >> 1;
+        middle = first + half;
+        if (comp(*middle, value)) {
+            first = middle + 1;
+            len = len - half - 1;
+        }
+        else if (comp(value, *middle)) len = half;
+        else {
+            left = tinystl::lower_bound(first, middle, value, comp);
+            right = tinystl::upper_bound(++middle, first + len, value, comp);
+            return tinystl::pair<RandomAccessIterator, RandomAccessIterator>(left, right);
+        }
+    }
+    return tinystl::pair<RandomAccessIterator, RandomAccessIterator>(first, first);
+}
+
+/// @brief 查找[first,last)区间中与 value 相等的元素所形成的区间，返回一对迭代器指向区间首尾
 template <class ForwardIterator, class T, class Compare>
 tinystl::pair<ForwardIterator, ForwardIterator>
 equal_range(ForwardIterator first, ForwardIterator last, const T& value, Compare comp) {
-    return tinystl::pair<ForwardIterator, ForwardIterator>(
-        tinystl::lower_bound(first, last, value, comp),
-        tinystl::upper_bound(first, last, value, comp));
+    return tinystl::erange_dispatch(first, last, value, iterator_category(first), comp);
 }
 
 /*****************************************************************************************/
@@ -1363,7 +1488,7 @@ OutputIterator merge(InputIterator1 first1, InputIterator1 last1,
 }
 
 /*****************************************************************************************/
-// inplace_merge
+// merge_without_buffer
 // 把连接在一起的两个有序序列结合成单一序列并保持有序
 // TODO: 讲解
 /*****************************************************************************************/

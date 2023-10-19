@@ -679,6 +679,26 @@ void test_len(size_t len1, size_t len2, size_t len3, size_t wide)
   MAP_EMPLACE_DO_TEST(tinystl, con, len2);                   \
   MAP_EMPLACE_DO_TEST(tinystl, con, len3);
 
+#define TEST_EQUAL_RANGE(mode, len, count) do {                 \
+  srand((int)time(0));                                          \
+  clock_t start, end;                                           \
+  mode::list<int> l;                                            \
+  char buf[10];                                                 \
+  mode::vector<int> v(len);                                     \
+  mode::iota(v.begin(), v.end(), 1);                            \
+  start = clock();                                              \
+  for (int i = 0; i < count; ++i) {                             \
+    int target = rand() % len + 1;                              \
+    auto range = mode::equal_range(v.begin(), v.end(), target); \
+  }                                                             \
+  end = clock();                                                \
+  int n = static_cast<int>(static_cast<double>(end - start)     \
+      / CLOCKS_PER_SEC * 1000);                                 \
+  std::snprintf(buf, sizeof(buf), "|   %d", n);                 \
+  std::string t = buf;                                          \
+  t += "ms    |";                                               \
+  std::cout << std::setw(WIDE) << t << std::endl;               \
+} while (0)
 
 // 简单测试的宏定义
 #define TEST(testcase_name) MYTINYSTL_TEST_(testcase_name)

@@ -36,7 +36,7 @@ int main() {
     // stack_test::stack_test();
     // map_test::map_test();
     // map_test::multimap_test();
-    set_test::set_test();
+    // set_test::set_test();
     // set_test::multiset_test();
     // unordered_map_test::unordered_map_test();
     // unordered_map_test::unordered_multimap_test();
