@@ -700,6 +700,22 @@ void test_len(size_t len1, size_t len2, size_t len3, size_t wide)
   std::cout << std::setw(WIDE) << t << std::endl;               \
 } while (0)
 
+#define TEST_ROTATE(mode, len, count) do { \
+  srand((int)time(0)); \
+  clock_t start, end; \
+  mode::vector<int> v(len); \
+  mode::iota(v.begin(), v.end(), 1); \
+  start = clock(); \
+  for (int i = 0; i < count; ++i) { \
+    int middle = rand() % len + 1; \
+    mode::rotate(v.begin(), v.begin() + middle, v.end()); \
+  } \
+  end = clock(); \
+  int n = static_cast<int>(static_cast<double>(end - start) \
+      / CLOCKS_PER_SEC * 1000); \
+  std::cout << "Total time: " << n << " ms\n"; \
+} while (0)
+
 // 简单测试的宏定义
 #define TEST(testcase_name) MYTINYSTL_TEST_(testcase_name)
 

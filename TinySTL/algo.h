@@ -1226,34 +1226,8 @@ void random_shuffle(RandomAccessIterator first, RandomAccessIterator last,
 // rotate
 // 将[first, middle)内的元素和 [middle, last)内的元素互换，可以交换两个长度不同的区间
 // 返回交换后 middle 的位置
-// STL 原始的实现太复杂了，这里使用 LeetCode 189 题的解法，翻转三次数组
-// https://leetcode.cn/problems/rotate-array/
-// 也不需要使用额外的空间，O(1) 空间复杂度，O(n) 时间复杂度
-// TODO:讲解
+// 三种不同的实现原理详见：https://leetcode.cn/problems/rotate-array/
 /*****************************************************************************************/
-
-// template <class ForwardIterator>
-// ForwardIterator rotate_dispatch(ForwardIterator first, ForwardIterator middle, 
-//                                 ForwardIterator last, forward_iterator_tag) {
-//     auto new_middle = first;
-//     tinystl::advance(new_middle, last - middle);
-//     tinystl::reverse(first, last);
-//     tinystl::reverse(first, new_middle);
-//     tinystl::reverse(new_middle, last);
-//     return new_middle;
-// }
-
-// template <class BidirectionalIterator>
-// BidirectionalIterator rotate_dispatch(BidirectionalIterator first, BidirectionalIterator middle, 
-//                                       BidirectionalIterator last, bidirectional_iterator_tag) {
-//     auto new_middle = first;
-//     tinystl::advance(new_middle, last - middle);
-//     tinystl::reverse(first, last);
-//     tinystl::reverse(first, new_middle);
-//     tinystl::reverse(new_middle, last);
-//     return new_middle;
-// }
-
 
 // 使用三次翻转的方法后 rotate 就完全不需要根据迭代器来设计不同的实现，只需使用 reverse 的不同实现即可
 
@@ -1267,6 +1241,91 @@ ForwardIterator rotate(ForwardIterator first, ForwardIterator middle, ForwardIte
     tinystl::reverse(new_middle, last);
     return new_middle;
 }
+
+// /// @brief rotate 的 ForwardIterator 版本 
+// template  <class ForwardIterator, class Distance>
+// ForwardIterator rotate_dsipatch(ForwardIterator first, ForwardIterator middle, ForwardIterator last, 
+//     Distance*, forward_iterator_tag) {
+//     for (ForwardIterator i = middle;;) {
+//         tinystl::iter_swap(first, i);  // 前段、后段的元素一一交换
+//         ++first;                      
+//         ++i;                                // 双双前进 1
+//         // 以下判断是前段 [first, middle) 先结束还是后段 [middle, last) 先结束
+//         if (first == middle) {              // 前段先结束
+//             if (i == last) return;          // 后段也结束，结束整个循环
+//             else middle = i;                // 否则调整，对新的前、后段再做交换
+//         }
+//         else if (i == last) {               // 后段先结束
+//             i == middle;                 // 调整前段的区间范围
+//         }
+//     }
+// }
+
+// /// @brief rotate 的 BidirectionalIterator 版本
+// template <class BidirectionalIterator, class Distance>
+// void rotate_dsipatch(BidirectionalIterator first, BidirectionalIterator middle, BidirectionalIterator last, 
+//     Distance*, bidirectional_iterator_tag) {
+//     tinystl::reverse(first, middle);
+//     tinystl::reverse(middle, last);
+//     tinystl::reverse(first, last);
+// }
+
+// /// @brief 辗转相除法求最大公因子
+// template <class EuclideanRingElement>
+// EuclideanRingElement gcd(EuclideanRingElement m, EuclideanRingElement n) {
+//     while (n != 0) {
+//         auto t = m % n;
+//         m = n;
+//         n = t;
+//     }
+//     return m;
+// }
+
+// /// @brief 对 [first, last) 内的元素进行循环移位
+// /// @param first  区间起始位置
+// /// @param last   区间结束位置
+// /// @param initial  移动的起始位置
+// /// @param shift  移动的位数
+// /// @param T*  用于指定元素类型
+// template <class RandomAccessIterator, class Distance, class T>
+// void rotate_cycle(RandomAccessIterator first, RandomAccessIterator last, 
+//     RandomAccessIterator initial, Distance shift, T*) {
+//     T value = *initial;
+//     RandomAccessIterator ptr1 = initial;
+//     RandomAccessIterator ptr2 = ptr1 + shift;
+//     while (ptr2 != initial) {
+//         *ptr1 = *ptr2;
+//         ptr1 = ptr2;
+//         if (last - ptr2 > shift) ptr2 += shift;
+//         else ptr2 = first + (shift - (last - ptr2));
+//     }
+//     *ptr1 = value;
+// }
+
+// /// @brief rotate 的 RandomAccessIterator 版本
+// template <class RandomAccessIterator, class Distance>
+// void rotate_dispatch(RandomAccessIterator first, RandomAccessIterator middle, 
+//     RandomAccessIterator last, Distance*, random_access_iterator_tag) {
+//     // 以下迭代器的相减操作，只适用于 RandomAccessIterator
+//     // 取全长和前段长度的最大公因子
+//     Distance n = gcd(last - first, middle - first);
+//     while (n--) {
+//         tinystl::rotate_cycle(first, last, first + n, middle - first, value_type(first));
+//     }
+// }
+
+// /// @brief 将[first, middle)内的元素和 [middle, last)内的元素互换，可以交换两个长度不同的区间
+// template <class ForwardIterator>
+// ForwardIterator rotate(ForwardIterator first, ForwardIterator middle, ForwardIterator last) {
+//     // if (first == middle || middle == last) return;
+//     if (first == middle) return last;
+//     if (middle == last) return first;
+//     tinystl::rotate_dispatch(first, middle, last, distance_type(first), iterator_category(first));
+//     auto new_middle = first;
+//     tinystl::advance(new_middle, last - middle);
+//     return new_middle;
+// }
+
 
 /*****************************************************************************************/
 // rotate_copy
