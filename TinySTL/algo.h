@@ -1244,7 +1244,7 @@ ForwardIterator rotate(ForwardIterator first, ForwardIterator middle, ForwardIte
 
 // /// @brief rotate 的 ForwardIterator 版本 
 // template  <class ForwardIterator, class Distance>
-// ForwardIterator rotate_dsipatch(ForwardIterator first, ForwardIterator middle, ForwardIterator last, 
+// void rotate_dsipatch(ForwardIterator first, ForwardIterator middle, ForwardIterator last, 
 //     Distance*, forward_iterator_tag) {
 //     for (ForwardIterator i = middle;;) {
 //         tinystl::iter_swap(first, i);  // 前段、后段的元素一一交换
@@ -1422,10 +1422,9 @@ bool is_permutation(ForwardIter1 first1, ForwardIter1 last1,
 // next_permutation
 // 取得[first, last)所标示序列的下一个排列组合，如果没有下一个排序组合，返回 false，否则返回 true
 // 算法流程为：
-// 首先，从最尾端开始往前寻找两个相邻元素，令第一元素为 *i，第二元素为 *ii，且满足 *i < *ii。
-// 找到这样一组相邻元素后﹐再从最尾端开始往前检验，找出第一个大于 *i 的元素，令为 *j，将 i，j 元素对调，
-// 再将 ii之后的所有元素颠倒排列。此即所求之 “下一个” 排列组合。
-// TODO:讲解
+// - 首先，从最尾端开始往前寻找**两个相邻元素**，令第一元素为 `*i`，第二元素为 `*ii`，且满足 `*i < *ii`。
+// - 找到这样一组相邻元素后，再从最尾端开始往前检验,找出第一个大于 `*i` 的元素，令为 `*j`。
+// - 将 `i`,`j` 元素对调，再将 `ii` 之后的所有元素颠倒排列，此即所求之“下一个”排列组合。
 /*****************************************************************************************/
 
 /// @brief 取得[first, last)所标示序列的下一个排列组合，如果没有下一个排序组合，返回 false，否则返回 true
@@ -1434,15 +1433,22 @@ bool next_permutation(BidirectionalIterator first, BidirectionalIterator last) {
     auto i = last;
     if (first == last || first == --i) return false;
     for (;;) {
+        // 从尾部向前查找
         auto ii = i;
+        // 找到第一对相邻元素，满足 *i < *ii
         if (*--i < *ii) {
+            // 从尾部向前查找第一个大于 *i 的元素 *j
             auto j = last;
             while (!(*i < *--j)) {}
+            // 交换 *i 和 *j
             tinystl::iter_swap(i, j);
+            // 将 ii 之后的元素颠倒排列
             tinystl::reverse(ii, last);
             return true;
         }
         if (i == first) {
+            // 进行到这里时，当前序列已经是“最后一个”排列组合，
+            // 将整个序列逆向排列，使其成为“第一个”排列组合
             tinystl::reverse(first, last);
             return false;
         }
@@ -1481,16 +1487,22 @@ bool prev_permutation(BidirectionalIterator first, BidirectionalIterator last) {
     auto i = last;
     if (first == last || first == --i) return false;
     for (;;) {
+        // 从尾部向前查找
         auto ii = i;
         // 找到第一对相邻元素，满足 *i > *ii
         if (*ii < *--i) {
+            // 从尾部向前查找第一个小于 *i 的元素 *j
             auto j = last;
             while (!(*--j < *i)) {}
-            tinystl::iter_swap(i, j);    // 交换 i 和 j
-            tinystl::reverse(ii, last);  // 将 ii 之后的元素颠倒排列
+            // 交换 *i 和 *j
+            tinystl::iter_swap(i, j);
+            // 将 ii 之后的元素颠倒排列    
+            tinystl::reverse(ii, last);  
             return true;
         }
         if (i == first) {
+            // 进行到这里时，当前序列已经是“第一个”排列组合，
+            // 将整个序列逆向排列，使其成为“最后一个”排列组合
             tinystl::reverse(first, last);
             return false;
         }
@@ -1547,9 +1559,8 @@ OutputIterator merge(InputIterator1 first1, InputIterator1 last1,
 }
 
 /*****************************************************************************************/
-// merge_without_buffer
+// Inplace_merge 就地将两个有序序列合并
 // 把连接在一起的两个有序序列结合成单一序列并保持有序
-// TODO: 讲解
 /*****************************************************************************************/
 
 /// @brief 在没有缓冲区的情况下合并
@@ -1566,11 +1577,15 @@ void merge_without_buffer(BidirectionalIterator first, BidirectionalIterator mid
     Distance len11 = 0;
     Distance len22 = 0;
     // 序列一比较长，找到序列一的中点
+    // |----------- len1 --------|-------- len2 ---------|
+    // first      first_cut   middle      second_cut  last
+    // |----- len11 ----|        |----len22 ---|     
     if (len1 > len2) {
         len11 = len1 >> 1;
         tinystl::advance(first_cut, len11);
         second_cut = tinystl::lower_bound(middle, last, *first_cut);
         len22 = tinystl::distance(middle, second_cut);
+        // 这样一来，[first_cut, middle) 区间为序列一中较大部分，[middle, second_cut) 为序列二中较小部分
     }
     // 序列二比较长，找到序列二的中点
     else {  
@@ -1581,6 +1596,7 @@ void merge_without_buffer(BidirectionalIterator first, BidirectionalIterator mid
     }
     // 将较小的部分旋转至前半段，较大的部分旋转至后半段
     // 这样就将问题转化为了将两个长度更小的序列合并
+    // NOTE: 这里的 rotate 实现与 STL 略有不同，会返回新的 middle 位置，否则需要重新计算 middle 的位置
     auto new_middle = tinystl::rotate(first_cut, middle, second_cut);
     // 递归解决子问题
     tinystl::merge_without_buffer(first, first_cut, new_middle, len11, len22);
@@ -1971,7 +1987,6 @@ partition_copy(InputIterator first, InputIterator last, OutputIterator1 result_t
 // sort
 // 将[first, last)内的元素以递增的方式排序
 // 使用 sort 算法的迭代器必须为 random_access_iterator
-// TODO: 讲解
 /*****************************************************************************************/
 constexpr static size_t kThreshold = 32;  // 小型区间的大小，在这个大小内采用插入排序
 
@@ -2018,7 +2033,7 @@ void intro_sort(RandomAccessIterator first, RandomAccessIterator last, Size dept
     }
 }
 
-/// @brief 插入排序辅助函数，翻转 last 之前的逆转对
+/// @brief 插入排序辅助函数，将 value 插入到 [first, last) 中，不做边界检查
 template <class RandomAccessIterator, class T>
 void unchecked_linear_insert(RandomAccessIterator last, const T& value) {
     auto next = last;
@@ -2031,7 +2046,7 @@ void unchecked_linear_insert(RandomAccessIterator last, const T& value) {
     *last = value;
 }
 
-/// @brief 插入排序函数
+/// @brief 插入排序函数，不做边界检查
 template <class RandomAccessIterator>
 void unchecked_insertion_sort(RandomAccessIterator first, RandomAccessIterator last) {
     // 从 first + 1 开始排序
@@ -2046,12 +2061,12 @@ void insertion_sort(RandomAccessIterator first, RandomAccessIterator last) {
     if (first == last) return;
     for (auto i = first + 1; i != last; ++i) {
         auto value = *i;
-        // 如果 value 比 first 还小，就将 first 后移，然后将 value 放到 first 处
+        // 如果 value 比 *first 还小就直接将 value 插在最前的位置，完成对该元素的排序
         if (value < *first) {
             tinystl::copy_backward(first, i, i + 1);
             *first = value;
         }
-        // 这里保证 value 的值一定是小于等于 *first 的，所以可以直接调用 unchecked_linear_insert
+        // 否则，*first 一定是最小的元素，所以可以直接调用 unchecked_linear_insert，找当前元素的插入位置
         else {
             tinystl::unchecked_linear_insert(i, value);
         }
@@ -2188,9 +2203,8 @@ void sort(RandomAccessIterator first, RandomAccessIterator last, Compare comp) {
 // 对序列重排，使得所有小于第 n 个元素的元素出现在它的前面，大于它的出现在它的后面
 // 思路：
 // 1. 选取三点中值作为 pivot，对序列进行分割
-// 2. 若 nth 元素落在分割点左侧，对左侧序列递归调用 nth_element，否则对右侧序列递归调用 nth_element
+// 2. 若 nth 元素落在分割点左侧，对左侧序列递归调用 partition，否则对右侧序列递归调用 partition
 // 3. 重复上述过程，直到分割区间长度小于等于 3，然后对这个区间进行插入排序
-// TODO: 讲解
 /*****************************************************************************************/
 
 /// @brief 对序列重排，使得所有小于第 n 个元素的元素出现在它的前面，大于它的出现在它的后面
@@ -2201,9 +2215,9 @@ void nth_element(RandomAccessIterator first, RandomAccessIterator nth, RandomAcc
         // 选取三点中值作为 pivot 进行分割
         auto cut = tinystl::unchecked_partition(first, last, 
             tinystl::median(*first, *(first + (last - first) / 2), *(last - 1)));
-        // nth 元素落在分割点右侧，对右侧序列递归调用 nth_element
+        // nth 元素落在分割点右侧，对右侧序列继续调用 partition
         if (cut <= nth) first = cut;
-        // nth 元素落在分割点左侧，对左侧序列递归调用 nth_element
+        // nth 元素落在分割点左侧，对左侧序列继续调用 partition
         else last = cut;
     }
     // 对分割区间进行插入排序
@@ -2219,9 +2233,9 @@ void nth_element(RandomAccessIterator first, RandomAccessIterator nth,
         // 选取三点中值作为 pivot 进行分割
         auto cut = tinystl::unchecked_partition(first, last, 
             tinystl::median(*first, *(first + (last - first) / 2), *(last - 1), comp), comp);
-        // nth 元素落在分割点右侧，对右侧序列递归调用 nth_element
+        // nth 元素落在分割点右侧，对右侧序列继续调用 partition
         if (cut <= nth) first = cut;
-        // nth 元素落在分割点左侧，对左侧序列递归调用 nth_element
+        // nth 元素落在分割点左侧，对左侧序列继续调用 partition
         else last = cut;
     }
     // 对分割区间进行插入排序
