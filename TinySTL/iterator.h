@@ -356,6 +356,100 @@ bool operator>=(const reverse_iterator<Iterator>& lhs,
     return !(lhs < rhs);
 }
 
+
+// ====================================== back_insert_iterator ====================================== //
+
+/// @brief 配接器 back_insert_iterator，将赋值操作转换为 push_back 操作
+/// @tparam Container 
+template <class Container>
+class back_insert_iterator {
+protected:
+    Container* container;  // 底层容器
+
+public:  // 类型定义
+    // 由于需要进行写入操作，因此迭代器类型为 output_iterator_tag
+    typedef output_iterator_tag     iterator_category;
+    typedef void                    value_type;
+    typedef void                    difference_type;
+    typedef void                    pointer;
+    typedef void                    reference;
+    typedef Container               container_type;
+
+    // 构造函数
+    explicit back_insert_iterator(Container& x) :container(&x) {}
+
+    /// @brief back_insert_iterator 功能的关键所在，将赋值操作转换为 push_back 操作
+    back_insert_iterator& operator=(const typename Container::value_type& value) {
+        container->push_back(value);
+        return *this;
+    }
+
+    back_insert_iterator& operator=(typename Container::value_type&& value) {
+        container->push_back(std::move(value));
+        return *this;
+    }
+
+    // 重载操作符
+    // 这三个操作符什么都不做，返回自身
+    back_insert_iterator& operator*() { return *this; }
+    back_insert_iterator& operator++() { return *this; }
+    back_insert_iterator& operator++(int) { return *this; }
+};
+
+
+/// @brief 辅助函数，返回一个容器的 back_insert_iterator
+template <class Container>
+inline back_insert_iterator<Container> back_inserter(Container& x) {
+    return back_insert_iterator<Container>(x);
+}
+
+
+// ====================================== front_insert_iterator ====================================== //
+
+/// @brief 配接器 front_insert_iterator，将赋值操作转换为 push_front 操作
+/// @tparam Container 
+template <class Container>
+class front_insert_iterator {
+protected:
+    Container* container;  // 底层容器
+
+public:  // 类型定义
+    typedef output_iterator_tag     iterator_category;
+    typedef void                    value_type;
+    typedef void                    difference_type;
+    typedef void                    pointer;
+    typedef void                    reference;
+    typedef Container               container_type;
+
+    // 构造函数
+    explicit front_insert_iterator(Container& x) :container(&x) {}
+
+    // NOTE: 由于调用的是 push_front，因此不适用于 vector
+
+    /// @brief front_insert_iterator 功能的关键所在，将赋值操作转换为 push_front 操作
+    front_insert_iterator& operator=(const typename Container::value_type& value) {
+        container->push_front(value);
+        return *this;
+    }
+
+    front_insert_iterator& operator=(typename Container::value_type&& value) {
+        container->push_front(std::move(value));
+        return *this;
+    }
+
+    // 重载操作符
+    // 这三个操作符什么都不做，返回自身
+    front_insert_iterator& operator*() { return *this; }
+    front_insert_iterator& operator++() { return *this; }
+    front_insert_iterator& operator++(int) { return *this; }
+};
+
+/// @brief 辅助函数，返回一个容器的 front_insert_iterator
+template <class Container>
+inline front_insert_iterator<Container> front_inserter(Container& x) {
+    return front_insert_iterator<Container>(x);
+}
+
 }  // namespace tinystl
 
 #endif  // TINYSTL_ITERATOR_H_
