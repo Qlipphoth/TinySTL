@@ -142,28 +142,28 @@ T* __copy_t(const T* first, const T* last, T* result, std::false_type);
 /// @brief 完全泛化版本 copy
 template <class InputIterator, class OutputIterator>
 OutputIterator copy(InputIterator first, InputIterator last, OutputIterator result) {
-    std::cout << "copy" << std::endl;
+    // std::cout << "copy" << std::endl;
     return __copy_dispatch(first, last, result);
 }
 
 /// @brief 特殊版本（1），针对 char* 的特化
 char* copy(const char* first, const char* last, char* result) {
     std::memmove(result, first, last - first);
-    std::cout << "char* copy" << std::endl;
+    // std::cout << "char* copy" << std::endl;
     return result + (last - first);
 }
 
 /// @brief 特殊版本（2），针对 wchar_t* 的特化
 wchar_t* copy(const wchar_t* first, const wchar_t* last, wchar_t* result) {
     std::memmove(result, first, sizeof(wchar_t) * (last - first));
-    std::cout << "wchar_t* copy" << std::endl;
+    // std::cout << "wchar_t* copy" << std::endl;
     return result + (last - first);
 }
 
 /// @brief copy_dispatch 的完全泛化版本
 template <class InputIterator, class OutputIterator>
 OutputIterator __copy_dispatch(InputIterator first, InputIterator last, OutputIterator result) {
-    std::cout << "InputIterator __copy_dispatch" << std::endl;
+    // std::cout << "InputIterator __copy_dispatch" << std::endl;
     return __copy(first, last, result, iterator_category(first));
 };
 
@@ -171,7 +171,7 @@ OutputIterator __copy_dispatch(InputIterator first, InputIterator last, OutputIt
 template <class T>
 T* __copy_dispatch(T* first, T* last, T* result) {
     using trivial = typename std::is_trivially_copy_assignable<T>::type;
-    std::cout << "T* __copy_dispatch" << std::endl;
+    // std::cout << "T* __copy_dispatch" << std::endl;
     return __copy_t(first, last, result, trivial());
 };
 
@@ -179,7 +179,7 @@ T* __copy_dispatch(T* first, T* last, T* result) {
 template <class T>
 T* __copy_dispatch(const T* first, const T* last, T* result) {
     using trivial = typename std::is_trivially_copy_assignable<T>::type;
-    std::cout << "const T* __copy_dispatch" << std::endl;
+    // std::cout << "const T* __copy_dispatch" << std::endl;
     return __copy_t(first, last, result, trivial());
 };
 
@@ -190,7 +190,7 @@ OutputIterator __copy(InputIterator first, InputIterator last,
     for (; first != last; ++first, ++result) {
         *result = *first;
     }
-    std::cout << "input_iterator_tag __copy" << std::endl;
+    // std::cout << "input_iterator_tag __copy" << std::endl;
     return result;
 }
 
@@ -199,7 +199,7 @@ template <class RandomAccessIterator, class OutputIterator>
 OutputIterator __copy(RandomAccessIterator first, RandomAccessIterator last, 
     OutputIterator result, tinystl::random_access_iterator_tag) {
     // 又划分出一个函数，为的是其他地方也可以用到
-    std::cout << "random_access_iterator_tag __copy" << std::endl;
+    // std::cout << "random_access_iterator_tag __copy" << std::endl;
     return __copy_d(first, last, result, distance_type(first));
 }
 
@@ -210,7 +210,7 @@ OutputIterator __copy_d(RandomAccessIterator first, RandomAccessIterator last,
     for (Distance n = last - first; n > 0; --n, ++first, ++result) {
         *result = *first;
     }
-    std::cout << "__copy_d" << std::endl;
+    // std::cout << "__copy_d" << std::endl;
     return result;
 }
 
@@ -218,14 +218,14 @@ OutputIterator __copy_d(RandomAccessIterator first, RandomAccessIterator last,
 template <class T>
 T* __copy_t(const T* first, const T* last, T* result, std::true_type) {
     std::memmove(result, first, sizeof(T) * (last - first));
-    std::cout << "T* trivally_copy_assignable __copy_t" << std::endl;
+    // std::cout << "T* trivally_copy_assignable __copy_t" << std::endl;
     return result + (last - first);
 }
 
 /// @brief __copy_t 针对 non_trivally_copy_assignable 类型的版本
 template <class T>
 T* __copy_t(const T* first, const T* last, T* result, std::false_type) {
-    std::cout << "T* non_trivally_copy_assignable __copy_t" << std::endl;
+    // std::cout << "T* non_trivally_copy_assignable __copy_t" << std::endl;
     return __copy_d(first, last, result, static_cast<ptrdiff_t*>(nullptr));
 }
 

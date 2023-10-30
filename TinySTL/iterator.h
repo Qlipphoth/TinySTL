@@ -4,7 +4,9 @@
 // 这个头文件用于迭代器设计，包含了一些模板结构体与全局函数，
 
 #include <cstddef>  // ptrdiff_t, size_t
+#include <iostream>
 #include "type_traits.h"
+
 
 namespace tinystl {
 
@@ -223,6 +225,8 @@ void advance(InputIterator& i, Distance n) {
 // ====================================== reverse_iterator ====================================== //
 // 模板类：reverse_iterator
 
+/// @brief 配接器 reverse_iterator，将迭代器的前进变为后退，后退变为前进
+/// @tparam Iterator 
 template <class Iterator>
 class reverse_iterator {
 
@@ -385,7 +389,7 @@ public:  // 类型定义
     }
 
     back_insert_iterator& operator=(typename Container::value_type&& value) {
-        container->push_back(std::move(value));
+        container->push_back(move(value));
         return *this;
     }
 
@@ -433,7 +437,7 @@ public:  // 类型定义
     }
 
     front_insert_iterator& operator=(typename Container::value_type&& value) {
-        container->push_front(std::move(value));
+        container->push_front(move(value));
         return *this;
     }
 
@@ -449,6 +453,156 @@ template <class Container>
 inline front_insert_iterator<Container> front_inserter(Container& x) {
     return front_insert_iterator<Container>(x);
 }
+
+
+// ====================================== insert_iterator ====================================== //
+
+/// @brief 配接器 insert_iterator，将赋值操作转换为 insert 操作
+/// @tparam Container
+template <class Container>
+class insert_iterator {
+protected:
+    Container* container;  // 底层容器
+    typename Container::iterator iter;  // 底层迭代器
+
+public:  // 类型定义
+    typedef output_iterator_tag     iterator_category;
+    typedef void                    value_type;
+    typedef void                    difference_type;
+    typedef void                    pointer;
+    typedef void                    reference;
+    typedef Container               container_type;
+
+    // 构造函数
+    insert_iterator(Container& x, typename Container::iterator i) :container(&x), iter(i) {}
+
+    /// @brief insert_iterator 功能的关键所在，将赋值操作转换为 insert 操作
+    insert_iterator& operator=(const typename Container::value_type& value) {
+        iter = container->insert(iter, value);
+        ++iter;  // 使迭代器跟随新插入的元素移动
+        return *this;
+    }
+
+    insert_iterator& operator=(typename Container::value_type&& value) {
+        iter = container->insert(iter, move(value));
+        ++iter;  // 使迭代器跟随新插入的元素移动
+        return *this;
+    }
+
+    // 重载操作符
+    // 这三个操作符什么都不做，返回自身
+    insert_iterator& operator*() { return *this; }
+    insert_iterator& operator++() { return *this; }
+    insert_iterator& operator++(int) { return *this; }
+};
+
+/// @brief 辅助函数，返回一个容器的 insert_iterator
+template <class Container, class Iterator>
+inline insert_iterator<Container> inserter(Container& x, Iterator i) {
+    typedef typename Container::iterator iter;
+    return insert_iterator<Container>(x, iter(i));
+}
+
+
+// ====================================== istream_iterator ====================================== //
+
+/// @brief 配接器 istream_iterator，将输入流转换为迭代器
+/// @tparam T
+/// @tparam Distance
+template <class T, class Distance = ptrdiff_t>
+class istream_iterator {
+protected:
+    std::istream* stream;  // 输入流
+    T value;  // 保存当前读取的值
+    bool end_marker;  // 是否到达流尾
+
+public:  // 类型定义
+    typedef input_iterator_tag      iterator_category;
+    typedef T                       value_type;
+    typedef Distance                difference_type;
+    typedef const T*                pointer;
+    typedef const T&                reference;
+
+    // 构造函数
+    istream_iterator() :stream(&std::cin), end_marker(false) {}
+    istream_iterator(std::istream& s) :stream(&s) { read(); }
+
+    // 重载操作符
+    reference operator*() const { return value; }
+    pointer operator->() const { return &(operator*()); }
+
+    istream_iterator& operator++() {
+        read();
+        return *this;
+    }
+
+    istream_iterator operator++(int) {
+        istream_iterator tmp = *this;
+        read();
+        return tmp;
+    }
+
+    // 读取输入流
+    void read() {
+        end_marker = (*stream) ? true : false;
+        if (end_marker) *stream >> value;
+        end_marker = (*stream) ? true : false;
+    }
+
+    // Return true if x and y are both end or not end, or x and y are the same.
+    bool equal(const istream_iterator& rhs) const {
+        return (end_marker == rhs.end_marker) && (!end_marker || (stream == rhs.stream));
+    } 
+};
+
+
+template <class T, class Distance = ptrdiff_t>
+inline bool operator==(const istream_iterator<T, Distance>& lhs,
+                       const istream_iterator<T, Distance>& rhs) {
+    return lhs.equal(rhs);
+}
+
+template <class T, class Distance = ptrdiff_t>
+inline bool operator!=(const istream_iterator<T, Distance>& lhs,
+                       const istream_iterator<T, Distance>& rhs) {
+    return !(lhs == rhs);
+}
+
+
+// ====================================== ostream_iterator ====================================== //
+
+/// @brief 配接器 ostream_iterator，将输出流转换为迭代器
+/// @tparam T
+/// @tparam Distance
+template <class T, class Distance = ptrdiff_t>
+class ostream_iterator {
+protected:
+    std::ostream* stream;  // 输出流
+    const char* string;  // 分隔符 
+
+public:  // 类型定义
+    typedef output_iterator_tag     iterator_category;
+    typedef void                    value_type;
+    typedef void                    difference_type;
+    typedef void                    pointer;
+    typedef void                    reference;
+
+    // 构造函数
+    ostream_iterator(std::ostream& s) :stream(&s), string(nullptr) {}
+    ostream_iterator(std::ostream& s, const char* c) :stream(&s), string(c) {}
+
+    // 重载操作符
+    ostream_iterator& operator=(const T& value) {
+        *stream << value;
+        if (string) *stream << string;
+        return *this;
+    }
+
+    ostream_iterator& operator*() { return *this; }
+    ostream_iterator& operator++() { return *this; }
+    ostream_iterator& operator++(int) { return *this; }
+};
+
 
 }  // namespace tinystl
 
