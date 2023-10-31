@@ -251,3 +251,5 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
+
+buildWin/

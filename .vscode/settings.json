@@ -55,7 +55,8 @@
         "set": "cpp",
         "hashtable.h": "c",
         "unordered_set": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "regex": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

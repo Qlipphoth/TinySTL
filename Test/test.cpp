@@ -18,7 +18,7 @@
 #include "unordered_set_test.h"
 #include "unordered_map_test.h"
 #include "algorithm_test.h"
-
+#include "algorithm_performance_test.h"
 
 int main() {
 
@@ -28,7 +28,7 @@ int main() {
 
     RUN_ALL_TESTS();
     // algorithm_performance_test::algorithm_performance_test();
-    // vector_test::vector_test();
+    vector_test::vector_test();
     // list_test::list_test();
     // deque_test::deque_test();
     // queue_test::queue_test();
