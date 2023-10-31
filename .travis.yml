@@ -20,3 +20,6 @@ script:
   # 运行测试程序
   - cd ../bin
   - ./stltest
+
+
+  
