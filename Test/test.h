@@ -641,7 +641,7 @@ void test_len(size_t len1, size_t len2, size_t len3, size_t wide)
   FUN_TEST_FORMAT1(std::con, fun, arg, len1);                \
   FUN_TEST_FORMAT1(std::con, fun, arg, len2);                \
   FUN_TEST_FORMAT1(std::con, fun, arg, len3);                \
-  std::cout << "\n|        tinystl        |";                \
+  std::cout << "\n|       tinystl       |";                \
   FUN_TEST_FORMAT1(tinystl::con, fun, arg, len1);            \
   FUN_TEST_FORMAT1(tinystl::con, fun, arg, len2);            \
   FUN_TEST_FORMAT1(tinystl::con, fun, arg, len3);    
@@ -652,7 +652,7 @@ void test_len(size_t len1, size_t len2, size_t len3, size_t wide)
   FUN_TEST_FORMAT2(std::con, fun, arg1, arg2, len1);         \
   FUN_TEST_FORMAT2(std::con, fun, arg1, arg2, len2);         \
   FUN_TEST_FORMAT2(std::con, fun, arg1, arg2, len3);         \
-  std::cout << "\n|        tinystl        |";                \
+  std::cout << "\n|       tinystl       |";                \
   FUN_TEST_FORMAT2(tinystl::con, fun, arg1, arg2, len1);     \
   FUN_TEST_FORMAT2(tinystl::con, fun, arg1, arg2, len2);     \
   FUN_TEST_FORMAT2(tinystl::con, fun, arg1, arg2, len3);    
@@ -663,7 +663,7 @@ void test_len(size_t len1, size_t len2, size_t len3, size_t wide)
   LIST_SORT_DO_TEST(std, len1);                              \
   LIST_SORT_DO_TEST(std, len2);                              \
   LIST_SORT_DO_TEST(std, len3);                              \
-  std::cout << "\n|        tinystl        |";                \
+  std::cout << "\n|       tinystl       |";                \
   LIST_SORT_DO_TEST(tinystl, len1);                          \
   LIST_SORT_DO_TEST(tinystl, len2);                          \
   LIST_SORT_DO_TEST(tinystl, len3);
@@ -674,7 +674,7 @@ void test_len(size_t len1, size_t len2, size_t len3, size_t wide)
   MAP_EMPLACE_DO_TEST(std, con, len1);                       \
   MAP_EMPLACE_DO_TEST(std, con, len2);                       \
   MAP_EMPLACE_DO_TEST(std, con, len3);                       \
-  std::cout << "\n|        tinystl        |";                \
+  std::cout << "\n|       tinystl       |";                \
   MAP_EMPLACE_DO_TEST(tinystl, con, len1);                   \
   MAP_EMPLACE_DO_TEST(tinystl, con, len2);                   \
   MAP_EMPLACE_DO_TEST(tinystl, con, len3);

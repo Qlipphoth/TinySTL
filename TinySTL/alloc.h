@@ -24,7 +24,8 @@ union FreeList {
 
 /// @brief 二级空间配置器
 /// 注意，这里并没有 template 型别参数
-class alloc {
+class alloc 
+{
 private:
     static char*     start_free;  // 内存池起始位置
     static char*     end_free;    // 内存池结束位置
@@ -240,6 +241,27 @@ char* alloc::chunk_alloc(size_t size, size_t& nblock) {
         return(chunk_alloc(size, nblock));     // 递归调用，修正 nblock 的值
     }
 }
+
+
+template <class T, class Alloc>
+class simple_alloc {
+public:
+    static T* allocate(size_t n) {
+        return 0 == n ? 0 : (T*)Alloc::allocate(n * sizeof(T));
+    }
+
+    static T* allocate(void) {
+        return (T*)Alloc::allocate(sizeof(T));
+    }
+
+    static void deallocate(T* p, size_t n) {
+        if (0 != n) Alloc::deallocate(p, n * sizeof(T));
+    }
+
+    static void deallocate(T* p) {
+        Alloc::deallocate(p, sizeof(T));
+    }
+};
 
 }  // namespace tinystl
 

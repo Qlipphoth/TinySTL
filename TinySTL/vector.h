@@ -8,6 +8,7 @@
 #include "util.h"          
 #include "exceptdef.h"
 #include "algo.h"
+#include "alloc.h"
 
 namespace tinystl {
 
@@ -23,23 +24,33 @@ namespace tinystl {
 #endif // min
 
 // 模板类 vector
-template <class T>
+template <class T, class Alloc = alloc>
 class vector {
 
 // 静态断言，用于在编译期间判断 T 是否为 bool 类型
 static_assert(!std::is_same<bool, T>::value, "vector<bool> is abandoned in tinystl");
+
 public:
     // vector 的嵌套型别定义
-    typedef tinystl::allocator<T>                         allocator_type;
-    typedef tinystl::allocator<T>                         data_allocator;
+    typedef simple_alloc<T, Alloc>                       data_allocator;
+    typedef simple_alloc<T, Alloc>                       allocator_type;
 
-    typedef typename allocator_type::value_type           value_type;
-    typedef typename allocator_type::pointer              pointer;
-    typedef typename allocator_type::const_pointer        const_pointer;
-    typedef typename allocator_type::reference            reference;
-    typedef typename allocator_type::const_reference      const_reference;
-    typedef typename allocator_type::size_type            size_type;
-    typedef typename allocator_type::difference_type      difference_type;
+    // 已弃用
+    // typedef typename allocator_type::value_type           value_type;
+    // typedef typename allocator_type::pointer              pointer;
+    // typedef typename allocator_type::const_pointer        const_pointer;
+    // typedef typename allocator_type::reference            reference;
+    // typedef typename allocator_type::const_reference      const_reference;
+    // typedef typename allocator_type::size_type            size_type;
+    // typedef typename allocator_type::difference_type      difference_type;
+
+    typedef T                  value_type;
+    typedef value_type*        pointer;
+    typedef const value_type*  const_pointer;
+    typedef value_type&        reference;
+    typedef const value_type&  const_reference;
+    typedef size_t             size_type;
+    typedef ptrdiff_t          difference_type;
 
     // vector 的迭代器是普通指针
     typedef value_type*                                   iterator;
@@ -325,8 +336,8 @@ private:
 // =========================  函数实现  ====================== //
 
 // 复制赋值操作符
-template <class T>
-vector<T>& vector<T>::operator=(const vector& rhs) {
+template <class T, class Alloc>
+vector<T, Alloc>& vector<T, Alloc>::operator=(const vector& rhs) {
     if (this != &rhs) {
         const auto len = rhs.size();
         // 如果 rhs 比当前容量大，则重新分配内存
@@ -337,7 +348,8 @@ vector<T>& vector<T>::operator=(const vector& rhs) {
         // 如果 rhs 比当前容量小，则回收多余内存
         else if (size() >= len) {
             auto i = tinystl::copy(rhs.begin(), rhs.end(), begin());
-            data_allocator::destroy(i, end_);
+            // data_allocator::destroy(i, end_);
+            tinystl::destroy(i, end_);
             end_ = begin_ + len;
         }
         // 如果 rhs 比当前容量小，但是比当前元素多，则需要重新分配内存，并复制元素
@@ -351,8 +363,8 @@ vector<T>& vector<T>::operator=(const vector& rhs) {
 }
 
 // 移动赋值操作符
-template <class T>
-vector<T>& vector<T>::operator=(vector&& rhs) noexcept {
+template <class T, class Alloc>
+vector<T, Alloc>& vector<T, Alloc>::operator=(vector&& rhs) noexcept {
     destroy_and_recover(begin_, end_, cap_ - begin_);  // 回收内存
     begin_ = rhs.begin_;  // 移动资源
     end_ = rhs.end_;
@@ -366,8 +378,8 @@ vector<T>& vector<T>::operator=(vector&& rhs) noexcept {
 /// @brief 重新分配空间
 /// @tparam T  元素类型
 /// @param n  新的空间大小
-template <class T>
-void vector<T>::reserve(size_type n) {
+template <class T, class Alloc>
+void vector<T, Alloc>::reserve(size_type n) {
     if (capacity() < n) {
         THROW_LENGTH_ERROR_IF(n > max_size(), 
             "n can not larger than max_size() in vector<T>::reserve(n)");
@@ -384,8 +396,8 @@ void vector<T>::reserve(size_type n) {
 
 /// @brief 释放多余空间
 /// @tparam T 元素类型 
-template <class T>
-void vector<T>::shrink_to_fit() {
+template <class T, class Alloc>
+void vector<T, Alloc>::shrink_to_fit() {
     if (end_ < cap_) {
         reinsert(size());
     }
@@ -397,9 +409,9 @@ void vector<T>::shrink_to_fit() {
 /// @param pos  插入位置
 /// @param ...args  元素的构造参数
 /// @return  返回指向新构造元素的迭代器
-template <class T>
+template <class T, class Alloc>
 template <class... Args>
-typename vector<T>::iterator vector<T>::emplace(
+typename vector<T, Alloc>::iterator vector<T, Alloc>::emplace(
     const_iterator pos, Args&& ...args) {
     TINYSTL_DEBUG(pos >= begin() && pos <= end());
     iterator xpos = const_cast<iterator>(pos);
@@ -407,14 +419,15 @@ typename vector<T>::iterator vector<T>::emplace(
 
     // 构造位置为 end_，直接构造元素
     if (end_ != cap_ && xpos == end_) {
-        data_allocator::construct(tinystl::address_of(*end_), 
-            tinystl::forward<Args>(args)...);
+        // data_allocator::construct(tinystl::address_of(*end_), tinystl::forward<Args>(args)...);
+        tinystl::construct(tinystl::address_of(*end_), tinystl::forward<Args>(args)...);
         ++end_;
     }
     // 构造位置不为 end_，则需要移动元素
     else if (end_ != cap_) {
         auto new_end = end_;
-        data_allocator::construct(tinystl::address_of(*end_), *(end_ - 1));
+        // data_allocator::construct(tinystl::address_of(*end_), *(end_ - 1));
+        tinystl::construct(tinystl::address_of(*end_), *(end_ - 1));
         ++new_end;
         tinystl::copy_backward(xpos, end_ - 1, end_);
         *xpos = value_type(tinystl::forward<Args>(args)...);
@@ -430,12 +443,12 @@ typename vector<T>::iterator vector<T>::emplace(
 /// @brief 在尾部就地构造元素
 /// @tparam T  元素类型
 /// @param ...args  元素的构造参数
-template <class T>
+template <class T, class Alloc>
 template <class ...Args>
-void vector<T>::emplace_back(Args&& ...args) {
+void vector<T, Alloc>::emplace_back(Args&& ...args) {
     if (end_ < cap_) {
-        data_allocator::construct(tinystl::address_of(*end_), 
-            tinystl::forward<Args>(args)...);
+        // data_allocator::construct(tinystl::address_of(*end_), tinystl::forward<Args>(args)...);
+        tinystl::construct(tinystl::address_of(*end_), tinystl::forward<Args>(args)...);
         ++end_;
     }
     else {
@@ -446,8 +459,8 @@ void vector<T>::emplace_back(Args&& ...args) {
 /// @brief 在尾部插入元素
 /// @tparam T  元素类型
 /// @param value  元素的值
-template <class T>
-void vector<T>::push_back(const value_type& value) {
+template <class T, class Alloc>
+void vector<T, Alloc>::push_back(const value_type& value) {
     // 如果空间足够就直接构造元素
     if (end_ != cap_) {
         data_allocator::construct(tinystl::address_of(*end_), value);
@@ -461,10 +474,11 @@ void vector<T>::push_back(const value_type& value) {
 
 /// @brief 弹出尾部元素
 /// @tparam T  元素类型
-template <class T>
-void vector<T>::pop_back() {
+template <class T, class Alloc>
+void vector<T, Alloc>::pop_back() {
     TINYSTL_DEBUG(!empty());
-    data_allocator::destroy(end_ - 1);
+    // data_allocator::destroy(end_ - 1);
+    tinystl::destroy(end_ - 1);
     --end_;
 }
 
@@ -473,8 +487,8 @@ void vector<T>::pop_back() {
 /// @param pos  插入位置
 /// @param value  元素的值
 /// @return  返回指向新构造元素的迭代器
-template <class T>
-typename vector<T>::iterator vector<T>::insert(const_iterator pos, const value_type& value) {
+template <class T, class Alloc>
+typename vector<T, Alloc>::iterator vector<T, Alloc>::insert(const_iterator pos, const value_type& value) {
     // 确保 pos 在 [begin(), end()) 内
     TINYSTL_DEBUG(pos >= begin() && pos <= end());
     iterator xpos = const_cast<iterator>(pos);
@@ -509,15 +523,16 @@ typename vector<T>::iterator vector<T>::insert(const_iterator pos, const value_t
 /// @tparam T  元素类型
 /// @param pos  删除位置
 /// @return  返回指向被删除元素的下一个元素的迭代器
-template <class T>
-typename vector<T>::iterator vector<T>::erase(const_iterator pos) {
+template <class T, class Alloc>
+typename vector<T, Alloc>::iterator vector<T, Alloc>::erase(const_iterator pos) {
     // 确保 pos 在 [begin(), end()) 内
     TINYSTL_DEBUG(pos >= begin() && pos < end());
     iterator xpos = begin_ + (pos - begin());
     // 将 [xpos + 1, end_) 的元素向前移动一位
     tinystl::move(xpos + 1, end_, xpos);
     // 销毁 end_ - 1处的元素
-    data_allocator::destroy(end_ - 1);
+    // data_allocator::destroy(end_ - 1);
+    tinystl::destroy(end_ - 1);
     // 更新 end_ 的位置
     --end_;
     return xpos;
@@ -528,15 +543,16 @@ typename vector<T>::iterator vector<T>::erase(const_iterator pos) {
 /// @param first  删除区间的起始位置
 /// @param last  删除区间的终止位置
 /// @return  返回指向被删除元素（区间）的下一个元素的迭代器
-template <class T>
-typename vector<T>::iterator vector<T>::erase(const_iterator first, const_iterator last) {
+template <class T, class Alloc>
+typename vector<T, Alloc>::iterator vector<T, Alloc>::erase(const_iterator first, const_iterator last) {
     // 确保 first 和 last 在 [begin(), end()) 内，且 first 不大于 last
     TINYSTL_DEBUG(first >= begin() && first <= end() && !(last < first));
     const auto n = first - begin();
     iterator r = begin_ + (first - begin());
     // tinystl::move(r + (last - first), end_, r) 将被删除区间后面的元素向前移动，返回移动后的尾部位置
     // destroy(pos, end_) 销毁 [pos, end_) 区间上的元素
-    data_allocator::destroy(tinystl::move(r + (last - first), end_, r), end_);
+    // data_allocator::destroy(tinystl::move(r + (last - first), end_, r), end_);
+    tinystl::destroy(tinystl::move(r + (last - first), end_, r), end_);
     // 更新 end_ 的位置
     end_ = end_ - (last - first);
     return begin_ + n;
@@ -546,8 +562,8 @@ typename vector<T>::iterator vector<T>::erase(const_iterator first, const_iterat
 /// @tparam T  元素类型
 /// @param new_size  新的容器大小
 /// @param value  新增元素的值
-template <class T>
-void vector<T>::resize(size_type new_size, const value_type& value) {
+template <class T, class Alloc>
+void vector<T, Alloc>::resize(size_type new_size, const value_type& value) {
     if (new_size < size()) {
         erase(begin() + new_size, end());
     }
@@ -559,8 +575,8 @@ void vector<T>::resize(size_type new_size, const value_type& value) {
 /// @brief 交换两个 vector
 /// @tparam T  元素类型
 /// @param rhs  交换的另一个 vector
-template <class T>
-void vector<T>::swap(vector<T>& rhs) noexcept {
+template <class T, class Alloc>
+void vector<T, Alloc>::swap(vector<T, Alloc>& rhs) noexcept {
     if (this != &rhs) {
         tinystl::swap(begin_, rhs.begin_);
         tinystl::swap(end_, rhs.end_);
@@ -572,8 +588,8 @@ void vector<T>::swap(vector<T>& rhs) noexcept {
 
 /// @brief 初始化 vector, 具有 commit or rollback 机制
 /// @tparam T  元素类型
-template <class T>
-void vector<T>::try_init() noexcept {
+template <class T, class Alloc>
+void vector<T, Alloc>::try_init() noexcept {
     try {
         begin_ = data_allocator::allocate(16);
         end_ = begin_;
@@ -590,8 +606,8 @@ void vector<T>::try_init() noexcept {
 /// @tparam T 元素类型
 /// @param size  元素个数
 /// @param cap  容量
-template <class T>
-void vector<T>::init_space(size_type size, size_type cap) {
+template <class T, class Alloc>
+void vector<T, Alloc>::init_space(size_type size, size_type cap) {
     try {
         begin_ = data_allocator::allocate(cap);
         end_ = begin_ + size;
@@ -609,8 +625,8 @@ void vector<T>::init_space(size_type size, size_type cap) {
 /// @tparam T  元素类型
 /// @param n  元素个数
 /// @param value  元素的值
-template <class T>
-void vector<T>::fill_init(size_type n, const value_type& value) {
+template <class T, class Alloc>
+void vector<T, Alloc>::fill_init(size_type n, const value_type& value) {
     const size_type init_size = tinystl::max(static_cast<size_type>(16), n);
     init_space(n, init_size);
     tinystl::uninitialized_fill_n(begin_, n, value);
@@ -620,9 +636,9 @@ void vector<T>::fill_init(size_type n, const value_type& value) {
 /// @tparam T  元素类型
 /// @param first  区间起始位置
 /// @param last  区间终止位置
-template <class T>
+template <class T, class Alloc>
 template <class Iter>
-void vector<T>::range_init(Iter first, Iter last) {
+void vector<T, Alloc>::range_init(Iter first, Iter last) {
     const size_type len = tinystl::distance(first, last);
     const size_type init_size = tinystl::max(static_cast<size_type>(16), len);
     init_space(len, init_size);
@@ -634,9 +650,11 @@ void vector<T>::range_init(Iter first, Iter last) {
 /// @param first  区间起始位置
 /// @param last  区间终止位置
 /// @param n  区间长度
-template <class T>
-void vector<T>::destroy_and_recover(iterator first, iterator last, size_type n) {
-    data_allocator::destroy(first, last);
+template <class T, class Alloc>
+void vector<T, Alloc>::destroy_and_recover(iterator first, iterator last, size_type n) {
+    // data_allocator::destroy(first, last);
+    // data_allocator::deallocate(first, n);
+    tinystl::destroy(first, last);
     data_allocator::deallocate(first, n);
 }
 
@@ -644,8 +662,8 @@ void vector<T>::destroy_and_recover(iterator first, iterator last, size_type n) 
 /// @tparam T  元素类型
 /// @param add_size  增加的大小
 /// @return  返回新的容量大小
-template <class T>
-typename vector<T>::size_type vector<T>::get_new_cap(size_type add_size) {
+template <class T, class Alloc>
+typename vector<T, Alloc>::size_type vector<T, Alloc>::get_new_cap(size_type add_size) {
     const auto old_size = capacity();
     THROW_LENGTH_ERROR_IF(old_size > max_size() - add_size, 
         "vector<T>'s size too big");
@@ -664,8 +682,8 @@ typename vector<T>::size_type vector<T>::get_new_cap(size_type add_size) {
 /// @tparam T  元素类型
 /// @param n  元素个数
 /// @param value  元素的值
-template <class T>
-void vector<T>::fill_assign(size_type n, const value_type& value) {
+template <class T, class Alloc>
+void vector<T, Alloc>::fill_assign(size_type n, const value_type& value) {
     if (n > capacity()) {
         vector tmp(n, value);
         swap(tmp);
@@ -684,9 +702,9 @@ void vector<T>::fill_assign(size_type n, const value_type& value) {
 /// @param first  区间起始位置
 /// @param last  区间终止位置
 /// @param   区间长度
-template <class T>
+template <class T, class Alloc>
 template <class Iter>
-void vector<T>::copy_assign(Iter first, Iter last, tinystl::input_iterator_tag) {
+void vector<T, Alloc>::copy_assign(Iter first, Iter last, tinystl::input_iterator_tag) {
     auto cur = begin_;
     for (; first != last && cur != end_; ++first, ++cur) {
         *cur = *first;
@@ -699,9 +717,9 @@ void vector<T>::copy_assign(Iter first, Iter last, tinystl::input_iterator_tag) 
     }
 }
 
-template <class T>
+template <class T, class Alloc>
 template <class Iter>
-void vector<T>::copy_assign(Iter first, Iter last, tinystl::forward_iterator_tag) {
+void vector<T, Alloc>::copy_assign(Iter first, Iter last, tinystl::forward_iterator_tag) {
     const auto len = tinystl::distance(first, last);
     if (len > capacity()) {
         vector tmp(first, last);
@@ -709,7 +727,8 @@ void vector<T>::copy_assign(Iter first, Iter last, tinystl::forward_iterator_tag
     }
     else if (size() >= len) {
         auto new_end = tinystl::copy(first, last, begin_);
-        data_allocator::destroy(new_end, end_);
+        // data_allocator::destroy(new_end, end_);
+        tinystl::destroy(new_end, end_);
         end_ = new_end;
     }
     else {
@@ -725,15 +744,16 @@ void vector<T>::copy_assign(Iter first, Iter last, tinystl::forward_iterator_tag
 /// @tparam T  元素类型
 /// @param pos  构造位置
 /// @param ...args  元素的构造参数
-template <class T>
+template <class T, class Alloc>
 template <class... Args>
-void vector<T>::reallocate_emplace(iterator pos, Args&& ...args) {
+void vector<T, Alloc>::reallocate_emplace(iterator pos, Args&& ...args) {
     const auto new_size = get_new_cap(1);
     auto new_begin = data_allocator::allocate(new_size);
     auto new_end = new_begin;
     try {
         new_end = tinystl::uninitialized_move(begin_, pos, new_begin);
-        data_allocator::construct(tinystl::address_of(*new_end), tinystl::forward<Args>(args)...);
+        // data_allocator::construct(tinystl::address_of(*new_end), tinystl::forward<Args>(args)...);
+        tinystl::construct(tinystl::address_of(*new_end), tinystl::forward<Args>(args)...);
         ++new_end;
         new_end = tinystl::uninitialized_move(pos, end_, new_end);
     }
@@ -751,8 +771,8 @@ void vector<T>::reallocate_emplace(iterator pos, Args&& ...args) {
 /// @tparam T  元素类型
 /// @param pos  插入位置
 /// @param value  元素的值
-template <class T> 
-void vector<T>::reallocate_insert(iterator pos, const value_type& value) {
+template <class T, class Alloc>
+void vector<T, Alloc>::reallocate_insert(iterator pos, const value_type& value) {
     const auto new_size = get_new_cap(1);
     auto new_begin = data_allocator::allocate(new_size);
     auto new_end = new_begin;
@@ -784,8 +804,8 @@ void vector<T>::reallocate_insert(iterator pos, const value_type& value) {
 /// @param n  插入元素个数
 /// @param value  元素的值
 /// @return  返回指向新构造元素的迭代器
-template <class T>
-typename vector<T>::iterator vector<T>::fill_insert(
+template <class T, class Alloc>
+typename vector<T, Alloc>::iterator vector<T, Alloc>::fill_insert(
     iterator pos, size_type n, const value_type& value) {
     if (n == 0) return pos;
     const size_type xpos = pos - begin_;
@@ -834,9 +854,9 @@ typename vector<T>::iterator vector<T>::fill_insert(
 /// @param pos  插入位置
 /// @param first  区间起始位置
 /// @param last  区间终止位置
-template <class T>
+template <class T, class Alloc>
 template <class Iter>
-void vector<T>::copy_insert(iterator pos, Iter first, Iter last) {
+void vector<T, Alloc>::copy_insert(iterator pos, Iter first, Iter last) {
     if (first == last) return;
     const auto n = tinystl::distance(first, last);
     // 剩余空间大于等于新增元素个数
@@ -880,8 +900,8 @@ void vector<T>::copy_insert(iterator pos, Iter first, Iter last) {
 /// @brief 重新分配内存
 /// @tparam T  元素类型
 /// @param size  新的内存大小
-template <class T>
-void vector<T>::reinsert(size_type size) {
+template <class T, class Alloc>
+void vector<T, Alloc>::reinsert(size_type size) {
     auto new_begin = data_allocator::allocate(size);
     try {
         tinystl::uninitialized_move(begin_, end_, new_begin);
@@ -898,41 +918,41 @@ void vector<T>::reinsert(size_type size) {
 
 // =========================  比较操作符  ====================== //
 
-template <class T>
-bool operator==(const vector<T>& lhs, const vector<T>& rhs) {
+template <class T, class Alloc>
+bool operator==(const vector<T, Alloc>& lhs, const vector<T, Alloc>& rhs) {
     return lhs.size() == rhs.size() && 
         tinystl::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
-template <class T>
-bool operator<(const vector<T>& lhs, const vector<T>& rhs) {
+template <class T, class Alloc>
+bool operator<(const vector<T, Alloc>& lhs, const vector<T, Alloc>& rhs) {
     return tinystl::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
-template <class T>
-bool operator!=(const vector<T>& lhs, const vector<T>& rhs) {
+template <class T, class Alloc>
+bool operator!=(const vector<T, Alloc>& lhs, const vector<T, Alloc>& rhs) {
     return !(lhs == rhs);
 }
 
-template <class T>
-bool operator>(const vector<T>& lhs, const vector<T>& rhs) {
+template <class T, class Alloc>
+bool operator>(const vector<T, Alloc>& lhs, const vector<T, Alloc>& rhs) {
     return rhs < lhs;
 }
 
-template <class T>
-bool operator<=(const vector<T>& lhs, const vector<T>& rhs) {
+template <class T, class Alloc>
+bool operator<=(const vector<T, Alloc>& lhs, const vector<T, Alloc>& rhs) {
     return !(rhs < lhs);
 }
 
-template <class T>
-bool operator>=(const vector<T>& lhs, const vector<T>& rhs) {
+template <class T, class Alloc>
+bool operator>=(const vector<T, Alloc>& lhs, const vector<T, Alloc>& rhs) {
     return !(lhs < rhs);
 }
 
 // =========================  重载 swap  ====================== //
 
-template <class T>
-void swap(vector<T>& lhs, vector<T>& rhs) noexcept {
+template <class T, class Alloc>
+void swap(vector<T, Alloc>& lhs, vector<T, Alloc>& rhs) noexcept {
     lhs.swap(rhs);  // 可以方便的交换两个 vector
 }
 
