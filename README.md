@@ -1,5 +1,7 @@
 # TinySTL
 
+[![Build status](https://ci.appveyor.com/api/projects/status/qa386f6e8uakdsff?svg=true)](https://ci.appveyor.com/project/Qlipphoth/tinystl)
+
 简单实现 SGI-STL，配套讲解博客。
 
 TODO
