@@ -2,13 +2,15 @@ version: 1.0.{build}
 image: Ubuntu2004
 install:
 # - sudo apt-get update
-- sudo apt-get install -y cmake
-build_script:
 - echo "Hello, World!"
-- ls
-# - cd build
-# - cmake ../
-# - cmake --build .
+- sudo apt-get install -y cmake
+
+build_script:
+- mkdir build
+- cd build
+- cmake ../
+- cmake --build .
+
 test_script:
-# - cd ../bin
-# - ./stltest
+- cd ../bin
+- ./stltest
