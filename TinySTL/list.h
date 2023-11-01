@@ -4,17 +4,6 @@
 // 这个头文件包含了一个模板类 list
 // list : 双向链表
 
-// notes:
-//
-// 异常保证：
-// TINYSTL::list<T> 满足基本异常保证，部分函数无异常保证，并对以下等函数做强异常安全保证：
-//   * emplace_front
-//   * emplace_back
-//   * emplace
-//   * push_front
-//   * push_back
-//   * insert
-
 #include <initializer_list>
 
 #include "iterator.h"
@@ -1090,23 +1079,29 @@ void list<T>::list_sort(Compare comp) {
     int fill = 0;         // 记录最深层数，counter[fill] 为空
 
     while (!empty()) {
+        // 运行到此处 carry 必然为空，因此一定可以处理下一个元素
         // 1. 将当前 list 的头部元素取出，放入 carry 中
-        // 运行到此处 carry 必然为空，可以处理下一个元素
         carry.splice(carry.begin(), *this, begin());
         int i = 0;  // 记录经过的层数
-        // 2. 从小往大不断合并非空归并层次直至遇到空层或者到达当前最大归并层次
+        
+        // 2. 从小往大不断合并非空层直至遇到空层或者到达当前最大归并层次
         // 出这个循环，无论 i 是否超过最大层，counter[i] 必然是空的
         // !counter[i].empty() 决定了 counter[i] 中存放的 list 的长度为 2^i
         while (i < fill && !counter[i].empty()) {
             // 将 carry 的元素与 counter[i] 的元素按顺序合并
             counter[i].merge(carry, comp);
             // 将合并后的结果放入 carry 中，i + 1，继续下一层的合并
+            // 这里使用了一些小技巧，实际上相当于：
+            // carry.swap(counter[i]);
+            // ++i;
             carry.swap(counter[i++]);
         }
+
         // 3. 将合并出的结果放入下一层中
         // 根据上面循环的退出条件，count[i]必然是空的，
-        // 这里相当于将carry这个操作结果放入下一层，并将carry置空，对应步骤 1
+        // 这里相当于将 carry 中归并的结果放入下一层，由于经过了 swap，因此 carry 必然为空
         carry.swap(counter[i]);
+
         // 如果 i == fill，说明当前层是最大层，需要增加一层
         if (i == fill) ++fill;
     }
@@ -1115,6 +1110,8 @@ void list<T>::list_sort(Compare comp) {
     for (int i = 1; i < fill; ++i) {
         counter[i].merge(counter[i - 1], comp);
     }
+
+    // 将最终的结果交换到当前 list 中
     swap(counter[fill - 1]);
 }
 
