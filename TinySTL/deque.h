@@ -7,7 +7,7 @@
 // notes:
 //
 // 异常保证：
-// tinystl::deque<T> 满足基本异常保证，部分函数无异常保证，并对以下等函数做强异常安全保证：
+// tinystl::deque<T, Alloc> 满足基本异常保证，部分函数无异常保证，并对以下等函数做强异常安全保证：
 //   * emplace_front
 //   * emplace_back
 //   * emplace
@@ -221,22 +221,34 @@ struct deque_iterator : public iterator<random_access_iterator_tag, T> {
 
 /// @brief 模板类 deque
 /// @tparam T  deque 中存储的元素的类型
-template <class T>
+template <class T, class Alloc = tinystl::allocator<T>>
 class deque {
 
 public: // deque 的型别定义
 
-    typedef tinystl::allocator<T>                     allocator_type;
-    typedef tinystl::allocator<T>                     data_allocator;
-    typedef tinystl::allocator<T*>                    map_allocator;
+    // typedef tinystl::allocator<T>                     allocator_type;
+    // typedef tinystl::allocator<T>                     data_allocator;
+    // typedef tinystl::allocator<T*>                    map_allocator;
 
-    typedef typename allocator_type::value_type       value_type;
-    typedef typename allocator_type::pointer          pointer;
-    typedef typename allocator_type::const_pointer    const_pointer;
-    typedef typename allocator_type::reference        reference;
-    typedef typename allocator_type::const_reference  const_reference;
-    typedef typename allocator_type::size_type        size_type;
-    typedef typename allocator_type::difference_type  difference_type;
+    typedef simple_alloc<T, Alloc>                    allocator_type;
+    typedef simple_alloc<T, Alloc>                    data_allocator;
+    typedef simple_alloc<T*, Alloc>                   map_allocator;
+
+    // typedef typename allocator_type::value_type       value_type;
+    // typedef typename allocator_type::pointer          pointer;
+    // typedef typename allocator_type::const_pointer    const_pointer;
+    // typedef typename allocator_type::reference        reference;
+    // typedef typename allocator_type::const_reference  const_reference;
+    // typedef typename allocator_type::size_type        size_type;
+    // typedef typename allocator_type::difference_type  difference_type;
+
+    typedef T                                         value_type;
+    typedef value_type*                               pointer;
+    typedef const value_type*                         const_pointer;
+    typedef value_type&                               reference;
+    typedef const value_type&                         const_reference;
+    typedef size_t                                    size_type;
+    typedef ptrdiff_t                                 difference_type;
 
     typedef pointer*                                  map_pointer;
     typedef const pointer*                            const_map_pointer;
@@ -342,12 +354,12 @@ public:  // 访问元素相关操作
     }
 
     reference at(size_type n) {
-        THROW_OUT_OF_RANGE_IF(!(n < size()), "deque<T>::at() subscript out of range");
+        THROW_OUT_OF_RANGE_IF(!(n < size()), "deque<T, Alloc>::at() subscript out of range");
         return (*this)[n];
     }
 
     const_reference at(size_type n) const {
-        THROW_OUT_OF_RANGE_IF(!(n < size()), "deque<T>::at() subscript out of range");
+        THROW_OUT_OF_RANGE_IF(!(n < size()), "deque<T, Alloc>::at() subscript out of range");
         return (*this)[n];
     }
 
@@ -545,8 +557,8 @@ public:  // appendix
 // =================================== 函数实现 =================================== //
 
 /// @brief 复制赋值运算符
-template <class T>
-deque<T>& deque<T>::operator=(const deque& rhs) {
+template <class T, class Alloc>
+deque<T, Alloc>& deque<T, Alloc>::operator=(const deque& rhs) {
     if (this != &rhs) {
         const auto len = size();
         if (len >= rhs.size()) {
@@ -562,8 +574,8 @@ deque<T>& deque<T>::operator=(const deque& rhs) {
 }
 
 /// @brief 移动赋值运算符
-template <class T>
-deque<T>& deque<T>::operator=(deque&& rhs) noexcept {
+template <class T, class Alloc>
+deque<T, Alloc>& deque<T, Alloc>::operator=(deque&& rhs) noexcept {
     clear();
     start_ = tinystl::move(rhs.start_);
     finish_ = tinystl::move(rhs.finish_);
@@ -577,8 +589,8 @@ deque<T>& deque<T>::operator=(deque&& rhs) noexcept {
 }
 
 /// @brief 重置容器的大小
-template <class T>
-void deque<T>::resize(size_type new_size, const value_type& value) {
+template <class T, class Alloc>
+void deque<T, Alloc>::resize(size_type new_size, const value_type& value) {
     const auto len = size();
     if (new_size < len) {
         erase(begin() + new_size, end());
@@ -591,8 +603,8 @@ void deque<T>::resize(size_type new_size, const value_type& value) {
 // 已弃用：shrink_to_fit()
 // /// @brief 减小容器容量，至少会留下头部缓冲区
 // /// @tparam T 
-// template <class T>
-// void deque<T>::shrink_to_fit() noexcept {
+// template <class T, class Alloc>
+// void deque<T, Alloc>::shrink_to_fit() noexcept {
 //     for (auto cur = map_; cur < start_.node; ++cur) {
 //         data_allocator::deallocate(*cur, buffer_size);
 //         *cur = nullptr;
@@ -604,12 +616,12 @@ void deque<T>::resize(size_type new_size, const value_type& value) {
 // }
 
 /// @brief 在头部就地构造元素
-template <class T>
+template <class T, class Alloc>
 template <class ...Args>
-void deque<T>::emplace_front(Args&& ...args) {
+void deque<T, Alloc>::emplace_front(Args&& ...args) {
     // 如果头部缓冲区还有空间，就在头部就地构造元素
     if (start_.cur != start_.first) {
-        data_allocator::construct(start_.cur - 1, tinystl::forward<Args>(args)...);
+        tinystl::construct(start_.cur - 1, tinystl::forward<Args>(args)...);
         --start_.cur;
     }
     // 否则需要重新分配空间
@@ -617,7 +629,7 @@ void deque<T>::emplace_front(Args&& ...args) {
         // require_capacity(1, true);
         // try {
         //     --start_;
-        //     data_allocator::construct(start_.cur, tinystl::forward<Args>(args)...);
+        //     tinystl::construct(start_.cur, tinystl::forward<Args>(args)...);
         // }
         // catch (...) {
         //     ++start_;
@@ -628,27 +640,27 @@ void deque<T>::emplace_front(Args&& ...args) {
 }
 
 /// @brief 在尾部就地构造元素
-template <class T>
+template <class T, class Alloc>
 template <class ...Args>
-void deque<T>::emplace_back(Args&& ...args) {
+void deque<T, Alloc>::emplace_back(Args&& ...args) {
     // 如果尾部缓冲区还有空间，就在尾部就地构造元素
     if (finish_.cur != finish_.last - 1) {
-        data_allocator::construct(finish_.cur, tinystl::forward<Args>(args)...);
+        tinystl::construct(finish_.cur, tinystl::forward<Args>(args)...);
         ++finish_.cur;
     }
     // 否则需要重新分配空间
     else {
         // require_capacity(1, false);
-        // data_allocator::construct(finish_.cur, tinystl::forward<Args>(args)...);
+        // tinystl::construct(finish_.cur, tinystl::forward<Args>(args)...);
         // ++finish_;
         push_back_aux(tinystl::forward<Args>(args)...);
     }
 }
 
 /// @brief 在 pos 处就地构造元素
-template <class T>
+template <class T, class Alloc>
 template <class ...Args>
-typename deque<T>::iterator deque<T>::emplace(iterator pos, Args&& ...args) {
+typename deque<T, Alloc>::iterator deque<T, Alloc>::emplace(iterator pos, Args&& ...args) {
     if (pos.cur == start_.cur) {
         emplace_front(tinystl::forward<Args>(args)...);
         return start_;
@@ -663,14 +675,14 @@ typename deque<T>::iterator deque<T>::emplace(iterator pos, Args&& ...args) {
 /// @brief 重新分配 map 并在尾部添加元素
 /// @tparam T  元素类型
 /// @param ...args  元素的构造参数
-template <class T>
+template <class T, class Alloc>
 template <class... Args>
-inline void deque<T>::push_back_aux(Args &&...args)
+inline void deque<T, Alloc>::push_back_aux(Args &&...args)
 {
     reserve_map_at_back();
     *(finish_.node + 1) = allocate_node();
     try {
-        data_allocator::construct(finish_.cur, tinystl::forward<Args>(args)...);
+        tinystl::construct(finish_.cur, tinystl::forward<Args>(args)...);
         finish_.set_node(finish_.node + 1);
         finish_.cur = finish_.first;
     }
@@ -683,16 +695,16 @@ inline void deque<T>::push_back_aux(Args &&...args)
 /// @brief 重新分配 map 并在头部添加元素
 /// @tparam T  元素类型
 /// @param ...args  元素的构造参数
-template <class T>
+template <class T, class Alloc>
 template <class... Args>
-inline void deque<T>::push_front_aux(Args &&...args)
+inline void deque<T, Alloc>::push_front_aux(Args &&...args)
 {
     reserve_map_at_front();
     *(start_.node - 1) = allocate_node();
     try {
         start_.set_node(start_.node - 1);
         start_.cur = start_.last - 1;
-        data_allocator::construct(start_.cur, tinystl::forward<Args>(args)...);
+        tinystl::construct(start_.cur, tinystl::forward<Args>(args)...);
     }
     catch (...) {
         ++start_;
@@ -702,54 +714,54 @@ inline void deque<T>::push_front_aux(Args &&...args)
 }
 
 /// @brief 弹出头部元素
-template <class T>
-void deque<T>::pop_front() {
+template <class T, class Alloc>
+void deque<T, Alloc>::pop_front() {
     TINYSTL_DEBUG(!empty());
     // 如果头部缓冲区还有元素，就在头部就地销毁元素
     if (start_.cur != start_.last - 1) {
-        data_allocator::destroy(start_.cur);
+        tinystl::destroy(start_.cur);
         ++start_.cur;
     }
     // 否则需要释放头部缓冲区
     else {
-        data_allocator::destroy(start_.cur);
+        tinystl::destroy(start_.cur);
         ++start_;
         destroy_buffer(start_.node - 1, start_.node - 1);
     }
 }
 
 /// @brief 弹出尾部元素
-template <class T>
-void deque<T>::pop_back() {
+template <class T, class Alloc>
+void deque<T, Alloc>::pop_back() {
     TINYSTL_DEBUG(!empty());
     // 如果尾部缓冲区还有元素，就在尾部就地销毁元素
     if (finish_.cur != finish_.first) {
         --finish_.cur;
-        data_allocator::destroy(finish_.cur);
+        tinystl::destroy(finish_.cur);
     }
     // 否则需要释放尾部缓冲区
     else {
         --finish_;
-        data_allocator::destroy(finish_.cur);
+        tinystl::destroy(finish_.cur);
         destroy_buffer(finish_.node + 1, finish_.node + 1);
     }
 }
 
 /// @brief 在 pos 处插入元素
-template <class T>
-typename deque<T>::iterator deque<T>::insert(iterator pos, const value_type& value) {
+template <class T, class Alloc>
+typename deque<T, Alloc>::iterator deque<T, Alloc>::insert(iterator pos, const value_type& value) {
     return emplace(pos, value);
 }
 
 /// @brief 在 pos 处插入元素
-template <class T>
-typename deque<T>::iterator deque<T>::insert(iterator pos, value_type&& value) {
+template <class T, class Alloc>
+typename deque<T, Alloc>::iterator deque<T, Alloc>::insert(iterator pos, value_type&& value) {
     return emplace(pos, tinystl::move(value));
 }
 
 /// @brief 在 pos 处插入 n 个元素
-template <class T>
-void deque<T>::insert(iterator pos, size_type n, const value_type& value) {
+template <class T, class Alloc>
+void deque<T, Alloc>::insert(iterator pos, size_type n, const value_type& value) {
     if (pos.cur == start_.cur) {
         // require_capacity(n, true);
         // auto new_start = start_ - static_cast<difference_type>(n);
@@ -770,8 +782,8 @@ void deque<T>::insert(iterator pos, size_type n, const value_type& value) {
 }
 
 /// @brief 清除 pos 处的元素
-template <class T>
-typename deque<T>::iterator deque<T>::erase(iterator pos) {
+template <class T, class Alloc>
+typename deque<T, Alloc>::iterator deque<T, Alloc>::erase(iterator pos) {
     auto next = pos; ++next;  // 尽量不要使用 pos + 1
     const auto elem_before = pos - start_;
     // 如果 pos 前面的元素比较少，就从前面开始移动
@@ -788,8 +800,8 @@ typename deque<T>::iterator deque<T>::erase(iterator pos) {
 }
 
 /// @brief 清除 [first, last) 内的元素
-template <class T>
-typename deque<T>::iterator deque<T>::erase(iterator first, iterator last) {
+template <class T, class Alloc>
+typename deque<T, Alloc>::iterator deque<T, Alloc>::erase(iterator first, iterator last) {
     if (first == start_ && last == finish_) {
         clear();
         return finish_;
@@ -801,7 +813,7 @@ typename deque<T>::iterator deque<T>::erase(iterator first, iterator last) {
         if (elems_before < (size() - n) / 2) {
             tinystl::copy_backward(start_, first, last);
             auto new_start = start_ + n;
-            data_allocator::destroy(start_.cur, new_start.cur);
+            tinystl::destroy(start_.cur, new_start.cur);
             // destroy_buffer(start_.node, new_start.node - 1);
             start_ = new_start;
         }
@@ -809,7 +821,7 @@ typename deque<T>::iterator deque<T>::erase(iterator first, iterator last) {
         else {
             tinystl::copy(last, finish_, first);
             auto new_finish = finish_ - n;
-            data_allocator::destroy(new_finish.cur, finish_.cur);
+            tinystl::destroy(new_finish.cur, finish_.cur);
             // destroy_buffer(new_finish.node + 1, finish_.node);
             finish_ = new_finish;
         }
@@ -818,29 +830,29 @@ typename deque<T>::iterator deque<T>::erase(iterator first, iterator last) {
 }
 
 /// @brief 清空 deque，保留头部的缓冲区
-template <class T>
-void deque<T>::clear() {
+template <class T, class Alloc>
+void deque<T, Alloc>::clear() {
     // 针对头尾以外的缓冲区，全部释放
     for (auto cur = start_.node + 1; cur < finish_.node; ++cur) {
-        data_allocator::destroy(*cur, *cur + buffer_size);       // 析构缓冲区内的元素
+        tinystl::destroy(*cur, *cur + buffer_size);       // 析构缓冲区内的元素
         data_allocator::deallocate(*cur, buffer_size);           // 释放缓冲区
     }
     // 至少有头尾两个缓冲区
     if (start_.node != finish_.node) {
-        data_allocator::destroy(start_.cur, start_.last);        // 析构头部缓冲区内的元素
-        data_allocator::destroy(finish_.first, finish_.cur);     // 析构尾部缓冲区内的元素
+        tinystl::destroy(start_.cur, start_.last);        // 析构头部缓冲区内的元素
+        tinystl::destroy(finish_.first, finish_.cur);     // 析构尾部缓冲区内的元素
         data_allocator::deallocate(finish_.first, buffer_size);  // 释放尾部缓冲区
     }
     // 仅剩一个缓冲区
-    else data_allocator::destroy(start_.cur, finish_.cur);       // 只需析构头部缓冲区内的元素
+    else tinystl::destroy(start_.cur, finish_.cur);       // 只需析构头部缓冲区内的元素
     // 注意，并不释放头部缓冲区，这唯一的缓冲区将保留。
 
     finish_ = start_; // 重置迭代器
 }
 
 /// @brief 交换两个 deque
-template <class T>
-void deque<T>::swap(deque& rhs) noexcept {
+template <class T, class Alloc>
+void deque<T, Alloc>::swap(deque& rhs) noexcept {
     if (this != &rhs) {
         tinystl::swap(start_, rhs.start_);
         tinystl::swap(finish_, rhs.finish_);
@@ -852,8 +864,8 @@ void deque<T>::swap(deque& rhs) noexcept {
 // =================================== help functions =================================== //
 
 /// @brief 创建管控中心
-template <class T>
-typename deque<T>::map_pointer deque<T>::create_map(size_type size) {
+template <class T, class Alloc>
+typename deque<T, Alloc>::map_pointer deque<T, Alloc>::create_map(size_type size) {
     map_pointer map = nullptr;
     map = map_allocator::allocate(size);
     for (auto cur = map; cur < map + size; ++cur) {
@@ -863,8 +875,8 @@ typename deque<T>::map_pointer deque<T>::create_map(size_type size) {
 }
 
 /// @brief 创建缓冲区
-template <class T>
-void deque<T>::create_buffer(map_pointer nstart, map_pointer nfinish) {
+template <class T, class Alloc>
+void deque<T, Alloc>::create_buffer(map_pointer nstart, map_pointer nfinish) {
     map_pointer cur;
     try {
         for (cur = nstart; cur <= nfinish; ++cur) {
@@ -882,8 +894,8 @@ void deque<T>::create_buffer(map_pointer nstart, map_pointer nfinish) {
 }
 
 /// @brief 销毁缓冲区
-template <class T>
-void deque<T>::destroy_buffer(map_pointer nstart, map_pointer nfinish) {
+template <class T, class Alloc>
+void deque<T, Alloc>::destroy_buffer(map_pointer nstart, map_pointer nfinish) {
     for (auto cur = nstart; cur <= nfinish; ++cur) {
         data_allocator::deallocate(*cur, buffer_size);
         *cur = nullptr;
@@ -891,8 +903,8 @@ void deque<T>::destroy_buffer(map_pointer nstart, map_pointer nfinish) {
 }
 
 /// @brief 初始化一个容量为 nElem 的 deque
-template <class T>
-void deque<T>::map_init(size_type nElem) {
+template <class T, class Alloc>
+void deque<T, Alloc>::map_init(size_type nElem) {
     // 需要节点数 = （元素数 / 缓冲区大小） + 1
     // 如果刚好整除，会多分配一个节点
     const auto nNode = nElem / buffer_size + 1;
@@ -903,6 +915,7 @@ void deque<T>::map_init(size_type nElem) {
         map_ = create_map(map_size_);
     }
     catch (...) {
+        map_allocator::deallocate(map_, map_size_);
         map_ = nullptr;
         map_size_ = 0;
         throw;
@@ -932,8 +945,8 @@ void deque<T>::map_init(size_type nElem) {
 }
 
 /// @brief 初始化一个容量为 n 且每个元素都为 value 的 deque
-template <class T>
-void deque<T>::fill_init(size_type n, const value_type& value) {
+template <class T, class Alloc>
+void deque<T, Alloc>::fill_init(size_type n, const value_type& value) {
     map_init(n);
     if (n != 0) {
         // 填充非尾节点的缓冲区
@@ -946,9 +959,9 @@ void deque<T>::fill_init(size_type n, const value_type& value) {
 }
 
 /// @brief 利用 [first, last) 区间的元素初始化 deque
-template <class T>
+template <class T, class Alloc>
 template <class InputIterator>
-void deque<T>::copy_init(InputIterator first, InputIterator last, tinystl::input_iterator_tag) {
+void deque<T, Alloc>::copy_init(InputIterator first, InputIterator last, tinystl::input_iterator_tag) {
     const difference_type n = tinystl::distance(first, last);
     map_init(n);
     for (; first != last; ++first) {
@@ -957,9 +970,9 @@ void deque<T>::copy_init(InputIterator first, InputIterator last, tinystl::input
 }
 
 /// @brief 利用 [first, last) 区间的元素初始化 deque
-template <class T>
+template <class T, class Alloc>
 template <class ForwardIterator>
-void deque<T>::copy_init(ForwardIterator first, ForwardIterator last, tinystl::forward_iterator_tag) {
+void deque<T, Alloc>::copy_init(ForwardIterator first, ForwardIterator last, tinystl::forward_iterator_tag) {
     const difference_type n = tinystl::distance(first, last);
     map_init(n);
     for (auto cur = start_.node; cur < finish_.node; ++cur) {
@@ -972,8 +985,8 @@ void deque<T>::copy_init(ForwardIterator first, ForwardIterator last, tinystl::f
 }
 
 /// @brief 为 deque 赋值 n 个 value
-template <class T>
-void deque<T>::fill_assign(size_type n, const value_type& value) {
+template <class T, class Alloc>
+void deque<T, Alloc>::fill_assign(size_type n, const value_type& value) {
     if (n > size()) {
         tinystl::fill(begin(), end(), value);
         insert(end(), n - size(), value);
@@ -985,9 +998,9 @@ void deque<T>::fill_assign(size_type n, const value_type& value) {
 }
 
 /// @brief 将 [first, last) 区间的元素拷贝赋值给 deque
-template <class T>
+template <class T, class Alloc>
 template <class InputIterator>
-void deque<T>::copy_assign(InputIterator first, InputIterator last, tinystl::input_iterator_tag) {
+void deque<T, Alloc>::copy_assign(InputIterator first, InputIterator last, tinystl::input_iterator_tag) {
     auto first1 = begin();
     auto last1 = end();
 
@@ -1004,9 +1017,9 @@ void deque<T>::copy_assign(InputIterator first, InputIterator last, tinystl::inp
 }
 
 /// @brief 将 [first, last) 区间的元素拷贝赋值给 deque
-template <class T>
+template <class T, class Alloc>
 template <class ForwardIterator>
-void deque<T>::copy_assign(ForwardIterator first, ForwardIterator last, tinystl::forward_iterator_tag) {
+void deque<T, Alloc>::copy_assign(ForwardIterator first, ForwardIterator last, tinystl::forward_iterator_tag) {
     const auto len = tinystl::distance(first, last);
     if (len > size()) {
         auto next = first;
@@ -1020,9 +1033,9 @@ void deque<T>::copy_assign(ForwardIterator first, ForwardIterator last, tinystl:
 }
 
 /// @brief 在 pos 处插入 1 个元素
-template <class T>
+template <class T, class Alloc>
 template <class ...Args>
-typename deque<T>::iterator deque<T>::insert_aux(iterator pos, Args&& ...args) {
+typename deque<T, Alloc>::iterator deque<T, Alloc>::insert_aux(iterator pos, Args&& ...args) {
     const auto elem_before = pos - start_;
     // 如果前面的元素比较少，就从前面开始移动
     if (elem_before < (size() >> 1)) {
@@ -1050,8 +1063,8 @@ typename deque<T>::iterator deque<T>::insert_aux(iterator pos, Args&& ...args) {
 /// @param pos  插入的位置
 /// @param n  插入的元素个数
 /// @param value  插入的元素的值
-template <class T>
-void deque<T>::fill_insert(iterator pos, size_type n, const value_type& value) {
+template <class T, class Alloc>
+void deque<T, Alloc>::fill_insert(iterator pos, size_type n, const value_type& value) {
     const auto elem_before = pos - start_;
     const auto len = size();
     auto value_copy = value;
@@ -1120,9 +1133,9 @@ void deque<T>::fill_insert(iterator pos, size_type n, const value_type& value) {
 }
 
 /// @brief 在 pos 处插入 [first, last) 区间的元素
-template <class T>
+template <class T, class Alloc>
 template <class ForwardIterator>
-void deque<T>::copy_insert(iterator pos, ForwardIterator first, ForwardIterator last, size_type n) {
+void deque<T, Alloc>::copy_insert(iterator pos, ForwardIterator first, ForwardIterator last, size_type n) {
     const auto elem_before = pos - start_;
     const auto len = size();
 
@@ -1194,9 +1207,9 @@ void deque<T>::copy_insert(iterator pos, ForwardIterator first, ForwardIterator 
 }
 
 /// @brief insert 的 InputIterator 版本
-template <class T>
+template <class T, class Alloc>
 template <class InputIterator>
-void deque<T>::insert_dispatch(iterator pos, InputIterator first, InputIterator last, 
+void deque<T, Alloc>::insert_dispatch(iterator pos, InputIterator first, InputIterator last, 
     tinystl::input_iterator_tag) {
     if (last <= first) return;
     const auto n = tinystl::distance(first, last);
@@ -1217,9 +1230,9 @@ void deque<T>::insert_dispatch(iterator pos, InputIterator first, InputIterator 
 } 
 
 /// @brief insert 的 ForwardIterator 版本
-template <class T>
+template <class T, class Alloc>
 template <class ForwardIterator>
-void deque<T>::insert_dispatch(iterator pos, ForwardIterator first, ForwardIterator last, 
+void deque<T, Alloc>::insert_dispatch(iterator pos, ForwardIterator first, ForwardIterator last, 
     tinystl::forward_iterator_tag) {
     if (last <= first) return;
     const auto n = tinystl::distance(first, last);
@@ -1256,8 +1269,8 @@ void deque<T>::insert_dispatch(iterator pos, ForwardIterator first, ForwardItera
 
 // 已弃用：require_capacity(size_type n, bool front)
 // /// @brief 分配管控中心容量
-// template <class T>
-// void deque<T>::require_capacity(size_type n, bool front) {
+// template <class T, class Alloc>
+// void deque<T, Alloc>::require_capacity(size_type n, bool front) {
 //     if (front && (static_cast<size_type>(start_.cur - start_.first) < n)) {
 //         const size_type need_buffer = (n - (start_.cur - start_.first)) / buffer_size + 1;  // 需要的缓冲区个数
 //         // 如果需要的缓冲区个数大于当前的缓冲区个数，就重新分配
@@ -1281,8 +1294,8 @@ void deque<T>::insert_dispatch(iterator pos, ForwardIterator first, ForwardItera
 // }
 
 // 已弃用：reallocate_map_at_front(size_type need_buffer)
-// template <class T>
-// void deque<T>::reallocate_map_at_front(size_type need_buffer) {
+// template <class T, class Alloc>
+// void deque<T, Alloc>::reallocate_map_at_front(size_type need_buffer) {
 //     const size_type new_map_size = tinystl::max(map_size_ << 1, map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE);
 //     map_pointer new_map = create_map(new_map_size);
 //     const size_type old_buffer = finish_.node - start_.node + 1;
@@ -1300,8 +1313,8 @@ void deque<T>::insert_dispatch(iterator pos, ForwardIterator first, ForwardItera
 // }
 
 // 已弃用：reallocate_map_at_back(size_type need_buffer)
-// template <class T>
-// void deque<T>::reallocate_map_at_back(size_type need_buffer) {
+// template <class T, class Alloc>
+// void deque<T, Alloc>::reallocate_map_at_back(size_type need_buffer) {
 //     const size_type new_map_size = tinystl::max(map_size_ << 1, map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE);
 //     map_pointer new_map = create_map(new_map_size); 
 //     const size_type old_buffer = finish_.node - start_.node + 1;
@@ -1323,8 +1336,8 @@ void deque<T>::insert_dispatch(iterator pos, ForwardIterator first, ForwardItera
 /// @tparam T  deque 的元素类型
 /// @param nodes_to_add  需要增加的节点个数
 /// @param add_at_front  是否在头部增加节点
-template <class T>
-inline void deque<T>::reallocate_map(size_type nodes_to_add, bool add_at_front)
+template <class T, class Alloc>
+inline void deque<T, Alloc>::reallocate_map(size_type nodes_to_add, bool add_at_front)
 {
     const size_type old_num_nodes = finish_.node - start_.node + 1;  // 原始的节点个数
     const size_type new_num_nodes = old_num_nodes + nodes_to_add;    // 新的节点个数
@@ -1367,10 +1380,10 @@ inline void deque<T>::reallocate_map(size_type nodes_to_add, bool add_at_front)
 /// @brief 在头部分配 n 个元素的空间
 /// @tparam T  deque 的元素类型
 /// @param new_elements  需要分配的元素个数
-template <class T>
-inline void deque<T>::new_elements_at_front(size_type new_elements)
+template <class T, class Alloc>
+inline void deque<T, Alloc>::new_elements_at_front(size_type new_elements)
 {
-    THROW_LENGTH_ERROR_IF(max_size() - size() < new_elements, "deque<T> too long");
+    THROW_LENGTH_ERROR_IF(max_size() - size() < new_elements, "deque<T, Alloc> too long");
     const size_type new_nodes = (new_elements + buffer_size - 1) / buffer_size;
     reserve_map_at_front(new_nodes);
     size_type i;
@@ -1388,10 +1401,10 @@ inline void deque<T>::new_elements_at_front(size_type new_elements)
 /// @brief 在尾部分配 n 个元素的空间
 /// @tparam T  deque 的元素类型
 /// @param new_elements  需要分配的元素个数
-template <class T>
-inline void deque<T>::new_elements_at_back(size_type new_elements)
+template <class T, class Alloc>
+inline void deque<T, Alloc>::new_elements_at_back(size_type new_elements)
 {
-    THROW_LENGTH_ERROR_IF(max_size() - size() < new_elements, "deque<T> too long");
+    THROW_LENGTH_ERROR_IF(max_size() - size() < new_elements, "deque<T, Alloc> too long");
     const size_type new_nodes = (new_elements + buffer_size - 1) / buffer_size;
     reserve_map_at_back(new_nodes);
     size_type i;
@@ -1408,41 +1421,41 @@ inline void deque<T>::new_elements_at_back(size_type new_elements)
 
 // =================================== 重载比较运算符 =================================== //
 
-template <class T>
-bool operator==(const deque<T>& lhs, const deque<T>& rhs) {
+template <class T, class Alloc>
+bool operator==(const deque<T, Alloc>& lhs, const deque<T, Alloc>& rhs) {
     return lhs.size() == rhs.size() && 
     tinystl::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
-template <class T>
-bool operator<(const deque<T>& lhs, const deque<T>& rhs) {
+template <class T, class Alloc>
+bool operator<(const deque<T, Alloc>& lhs, const deque<T, Alloc>& rhs) {
     return tinystl::lexicographical_compare(
     lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
-template <class T>
-bool operator!=(const deque<T>& lhs, const deque<T>& rhs) {
+template <class T, class Alloc>
+bool operator!=(const deque<T, Alloc>& lhs, const deque<T, Alloc>& rhs) {
   return !(lhs == rhs);
 }
 
-template <class T>
-bool operator>(const deque<T>& lhs, const deque<T>& rhs) {
+template <class T, class Alloc>
+bool operator>(const deque<T, Alloc>& lhs, const deque<T, Alloc>& rhs) {
   return rhs < lhs;
 }
 
-template <class T>
-bool operator<=(const deque<T>& lhs, const deque<T>& rhs) {
+template <class T, class Alloc>
+bool operator<=(const deque<T, Alloc>& lhs, const deque<T, Alloc>& rhs) {
   return !(rhs < lhs);
 }
 
-template <class T>
-bool operator>=(const deque<T>& lhs, const deque<T>& rhs) {
+template <class T, class Alloc>
+bool operator>=(const deque<T, Alloc>& lhs, const deque<T, Alloc>& rhs) {
   return !(lhs < rhs);
 }
 
 // 重载 tinystl 的 swap
-template <class T>
-void swap(deque<T>& lhs, deque<T>& rhs) {
+template <class T, class Alloc>
+void swap(deque<T, Alloc>& lhs, deque<T, Alloc>& rhs) {
   lhs.swap(rhs);
 }
 

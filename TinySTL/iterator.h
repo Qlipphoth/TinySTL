@@ -273,6 +273,13 @@ class reverse_iterator {
             return *this;
         }
 
+        reverse_iterator& operator=(const self& rhs) {
+            if (this != &rhs) {
+                current = rhs.current;
+            }
+            return *this;
+        }
+
         self operator++(int) {
             self tmp = *this;
             --current;

@@ -89,7 +89,7 @@ void unordered_set_test() {
 #if LARGER_TEST_DATA_ON
     CON_TEST_P1(unordered_set<int>, emplace, rand(), SCALE_L(LEN1), SCALE_L(LEN2), SCALE_L(LEN3));
 #else
-    CON_TEST_P1(unordered_set<int>, emplace, rand(), SCALE_M(LEN1), SCALE_M(LEN2), SCALE_M(LEN3));
+    CON_TEST_P1(unordered_set<int>, emplace, rand(), SCALE_SS(LEN1), SCALE_SS(LEN2), SCALE_SS(LEN3));
 #endif
     std::cout << std::endl;
     std::cout << "|---------------------|-------------|-------------|-------------|" << std::endl;
@@ -172,7 +172,7 @@ void unordered_multiset_test() {
 #if LARGER_TEST_DATA_ON
     CON_TEST_P1(unordered_multiset<int>, emplace, rand(), SCALE_M(LEN1), SCALE_M(LEN2), SCALE_M(LEN3));
 #else
-    CON_TEST_P1(unordered_multiset<int>, emplace, rand(), SCALE_S(LEN1), SCALE_S(LEN2), SCALE_S(LEN3));
+    CON_TEST_P1(unordered_multiset<int>, emplace, rand(), SCALE_SS(LEN1), SCALE_SS(LEN2), SCALE_SS(LEN3));
 #endif
     std::cout << std::endl;
     std::cout << "|---------------------|-------------|-------------|-------------|" << std::endl;

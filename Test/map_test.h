@@ -109,7 +109,7 @@ void map_test()
 #if LARGER_TEST_DATA_ON
   MAP_EMPLACE_TEST(map, SCALE_L(LEN1), SCALE_L(LEN2), SCALE_L(LEN3));
 #else
-  MAP_EMPLACE_TEST(map, SCALE_M(LEN1), SCALE_M(LEN2), SCALE_M(LEN3));
+  MAP_EMPLACE_TEST(map, SCALE_SSS(LEN1), SCALE_SSS(LEN2), SCALE_SSS(LEN3));
 #endif
   std::cout << std::endl;
   std::cout << "|---------------------|-------------|-------------|-------------|" << std::endl;
@@ -185,7 +185,7 @@ void multimap_test()
 #if LARGER_TEST_DATA_ON
   MAP_EMPLACE_TEST(multimap, SCALE_M(LEN1), SCALE_M(LEN2), SCALE_M(LEN3));
 #else
-  MAP_EMPLACE_TEST(multimap, SCALE_S(LEN1), SCALE_S(LEN2), SCALE_S(LEN3));
+  MAP_EMPLACE_TEST(multimap, SCALE_SSS(LEN1), SCALE_SSS(LEN2), SCALE_SSS(LEN3));
 #endif
   std::cout << std::endl;
   std::cout << "|---------------------|-------------|-------------|-------------|" << std::endl;

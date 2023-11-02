@@ -96,7 +96,7 @@ void unordered_map_test() {
 #if LARGER_TEST_DATA_ON
     MAP_EMPLACE_TEST(unordered_map, SCALE_M(LEN1), SCALE_M(LEN2), SCALE_M(LEN3));
 #else
-    MAP_EMPLACE_TEST(unordered_map, SCALE_S(LEN1), SCALE_S(LEN2), SCALE_S(LEN3));
+    MAP_EMPLACE_TEST(unordered_map, SCALE_SS(LEN1), SCALE_SS(LEN2), SCALE_SS(LEN3));
 #endif
     std::cout << std::endl;
     std::cout << "|---------------------|-------------|-------------|-------------|" << std::endl;
@@ -184,7 +184,7 @@ void unordered_multimap_test() {
 #if LARGER_TEST_DATA_ON
     MAP_EMPLACE_TEST(unordered_multimap, SCALE_M(LEN1), SCALE_M(LEN2), SCALE_M(LEN3));
 #else
-    MAP_EMPLACE_TEST(unordered_multimap, SCALE_S(LEN1), SCALE_S(LEN2), SCALE_S(LEN3));
+    MAP_EMPLACE_TEST(unordered_multimap, SCALE_SS(LEN1), SCALE_SS(LEN2), SCALE_SS(LEN3));
 #endif
     std::cout << std::endl;
     std::cout << "|---------------------|-------------|-------------|-------------|" << std::endl;
