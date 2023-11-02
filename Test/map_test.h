@@ -5,8 +5,8 @@
 
 #include <map>
 
-#include "../tinystl/map.h"
-#include "../tinystl/vector.h"
+#include "../TinySTL/map.h"
+#include "../TinySTL/vector.h"
 #include "test.h"
 
 namespace tinystl {

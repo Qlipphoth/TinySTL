@@ -5,7 +5,7 @@
 
 #include <set>
 
-#include "../tinystl/set.h"
+#include "../TinySTL/set.h"
 #include "test.h"
 
 namespace tinystl {
