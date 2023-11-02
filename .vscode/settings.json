@@ -56,7 +56,10 @@
         "hashtable.h": "c",
         "unordered_set": "cpp",
         "stack": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "variant": "cpp",
+        "bitset": "cpp",
+        "shared_mutex": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

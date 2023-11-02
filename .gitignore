@@ -253,3 +253,5 @@ ModelManifest.xml
 .fake/
 
 buildWin/
+
+/OtherTest/

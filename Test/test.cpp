@@ -9,7 +9,7 @@
 #endif // check memory leaks
 
 #include "vector_test.h"
-// #include "list_test.h"
+#include "list_test.h"
 // #include "deque_test.h"
 // #include "stack_test.h"
 // #include "queue_test.h"
@@ -26,10 +26,10 @@ int main() {
 
     std::cout.sync_with_stdio(false);
 
-    // RUN_ALL_TESTS();
+    RUN_ALL_TESTS();
     // algorithm_performance_test::algorithm_performance_test();
-    vector_test::vector_test();
-    // list_test::list_test();
+    // vector_test::vector_test();
+    list_test::list_test();
     // deque_test::deque_test();
     // queue_test::queue_test();
     // queue_test::priority_test();

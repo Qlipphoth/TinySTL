@@ -42,7 +42,7 @@ private:
     static size_t    ROUND_UP(size_t bytes);                   // 上调边界至 8 的倍数
     static size_t    FREELIST_INDEX(size_t bytes);             // 根据区块大小计算 free-lists 的下标
     static void*     refill(size_t n);                         // 重新填充 free-lists
-    static char*     chunk_alloc(size_t size, size_t &nobjs);  // 从内存池中取空间给 free-lists 使用
+    static char*     chunk_alloc(size_t size, int& nobjs);  // 从内存池中取空间给 free-lists 使用
 };
 
 // 静态成员变量的初始化
@@ -136,7 +136,7 @@ size_t alloc::FREELIST_INDEX(size_t bytes) {
 /// @param n 申请区块大小
 /// @return  申请到的一个区块的首地址
 void* alloc::refill(size_t n) {
-    size_t nblock = 20;  // 一次性申请的区块数量，指定为 20
+    int nblock = 20;  // 一次性申请的区块数量，指定为 20
     
     // 调用 chunk_alloc 申请 nblock 个大小为 n 的区块
     // 注意这里的 nblock 是引用，因此 chunk_alloc 会修改 nblock 的值
@@ -176,7 +176,7 @@ void* alloc::refill(size_t n) {
 /// @brief        从内存池中取空间给 free-lists 使用
 /// @param size   申请区块大小，假设 size 已经上调至 8 的倍数
 /// @param nblock 申请到的区块数量
-char* alloc::chunk_alloc(size_t size, size_t& nblock) {
+char* alloc::chunk_alloc(size_t size, int& nblock) {
     char* result;
     size_t total_bytes = size * nblock;         // 需要申请的空间大小
     size_t bytes_left = end_free - start_free;  // 内存池剩余空间大小
@@ -209,7 +209,9 @@ char* alloc::chunk_alloc(size_t size, size_t& nblock) {
         // malloc申请 heap 中两倍 + 额外大小的内存
         // 额外大小：取 heap_size 的 1/16，用来做额外的缓冲。
         size_t bytes_to_get = (total_bytes << 1) + ROUND_UP(heap_size >> 4);
-        start_free = (char *)std::malloc(bytes_to_get);  // 直接使用 malloc 申请内存
+
+        // 直接使用 malloc 申请内存
+        start_free = (char *)std::malloc(bytes_to_get);  
 
         // 堆中空间不足，malloc 失败
         if (start_free == 0) {
@@ -260,6 +262,29 @@ public:
 
     static void deallocate(T* p) {
         Alloc::deallocate(p, sizeof(T));
+    }
+};
+
+
+// 博主自己写的一个比较奇怪的偏特化
+
+template <class T, class S>
+class simple_alloc<T, allocator<S>> {
+public:
+    static T* allocate(size_t n) {
+        return 0 == n ? 0 : (T*)allocator<T>::allocate(n * sizeof(T));
+    }
+
+    static T* allocate(void) {
+        return (T*)allocator<T>::allocate(sizeof(T));
+    }
+
+    static void deallocate(T* p, size_t n) {
+        if (0 != n) allocator<T>::deallocate(p, n * sizeof(T));
+    }
+
+    static void deallocate(T* p) {
+        allocator<T>::deallocate(p, sizeof(T));
     }
 };
 

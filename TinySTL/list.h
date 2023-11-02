@@ -193,23 +193,36 @@ struct list_const_iterator : public iterator<bidirectional_iterator_tag, T> {
 // ==================================== list 结构 ==================================== //
 // SGI-STL 中的 list 为双向环形链表，其中尾节点为空节点，头节点为尾节点的前一个节点
 
-template <class T>
+template <class T, class Alloc = alloc>
 class list {
 
 public:
     // list 的嵌套型别定义
-    typedef tinystl::allocator<T>                     allocator_type;
-    typedef tinystl::allocator<T>                     data_allocator;
-    typedef tinystl::allocator<list_node_base<T>>     base_allocator;
-    typedef tinystl::allocator<list_node<T>>          node_allocator;
+    // typedef tinystl::allocator<T>                     allocator_type;
+    // typedef tinystl::allocator<T>                     data_allocator;
+    // typedef tinystl::allocator<list_node_base<T>>     base_allocator;
+    // typedef tinystl::allocator<list_node<T>>          node_allocator;
 
-    typedef typename allocator_type::value_type       value_type;
-    typedef typename allocator_type::pointer          pointer;
-    typedef typename allocator_type::const_pointer    const_pointer;
-    typedef typename allocator_type::reference        reference;
-    typedef typename allocator_type::const_reference  const_reference;
-    typedef typename allocator_type::size_type        size_type;
-    typedef typename allocator_type::difference_type  difference_type;
+    typedef simple_alloc<T, Alloc>                    allocator_type;
+    typedef simple_alloc<T, Alloc>                    data_allocator;
+    typedef simple_alloc<list_node_base<T>, Alloc>    base_allocator;
+    typedef simple_alloc<list_node<T>, Alloc>         node_allocator;
+
+    // typedef typename allocator_type::T                value_type;
+    // typedef typename allocator_type::pointer          pointer;
+    // typedef typename allocator_type::const_pointer    const_pointer;
+    // typedef typename allocator_type::reference        reference;
+    // typedef typename allocator_type::const_reference  const_reference;
+    // typedef typename allocator_type::size_type        size_type;
+    // typedef typename allocator_type::difference_type  difference_type;
+
+    typedef T                                         value_type;
+    typedef value_type*                               pointer;
+    typedef const value_type*                         const_pointer;
+    typedef value_type&                               reference;
+    typedef const value_type&                         const_reference;
+    typedef size_t                                    size_type;
+    typedef ptrdiff_t                                 difference_type;
 
     typedef list_iterator<T>                          iterator;
     typedef list_const_iterator<T>                    const_iterator;
@@ -342,7 +355,7 @@ public: // 调整元素容器相关操作
     /// @param ...args 
     template <class ...Args>
     void emplace_front(Args&&... args) {
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T, Alloc>'s size too big");
         auto link_node = create_node(std::forward<Args>(args)...);
         link_nodes_at_front(link_node->as_base(), link_node->as_base());
         ++size_;
@@ -353,7 +366,7 @@ public: // 调整元素容器相关操作
     /// @param ...args 
     template <class ...Args>
     void emplace_back(Args&&... args) {
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T, Alloc>'s size too big");
         auto link_node = create_node(std::forward<Args>(args)...);
         link_nodes_at_back(link_node->as_base(), link_node->as_base());
         ++size_;
@@ -366,7 +379,7 @@ public: // 调整元素容器相关操作
     /// @return  返回指向新插入元素的迭代器
     template <class ...Args>
     iterator emplace(const_iterator pos, Args&& ...args) {
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T, Alloc>'s size too big");
         auto link_node = create_node(std::forward<Args>(args)...);
         link_nodes(pos.node_, link_node->as_base(), link_node->as_base());
         ++size_;
@@ -380,21 +393,21 @@ public: // 调整元素容器相关操作
     /// @param value  节点的值
     /// @return  返回指向新插入元素的迭代器
     iterator insert(const_iterator pos, const value_type& value) {
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T, Alloc>'s size too big");
         auto link_node = create_node(value);
         ++size_;
         return link_iter_node(pos, link_node->as_base());
     }
 
     iterator insert(const_iterator pos, value_type&& value) {
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T, Alloc>'s size too big");
         auto link_node = create_node(std::move(value));
         ++size_;
         return link_iter_node(pos, link_node->as_base());
     }
 
     iterator insert(const_iterator pos, size_type n, const value_type& value) {
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - n, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - n, "list<T, Alloc>'s size too big");
         return fill_insert(pos, n, value);
     }
 
@@ -402,14 +415,14 @@ public: // 调整元素容器相关操作
         tinystl::is_input_iterator<Iter>::value, int>::type = 0>
     iterator insert(const_iterator pos, Iter first, Iter last) {
         size_type n = tinystl::distance(first, last);
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - n, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - n, "list<T, Alloc>'s size too big");
         return copy_insert(pos, n, first);
     }
 
     // push_front / push_back
 
     void push_front(const value_type& value) {
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T, Alloc>'s size too big");
         auto link_node = create_node(value);
         link_nodes_at_front(link_node->as_base(), link_node->as_base());
         ++size_;
@@ -420,7 +433,7 @@ public: // 调整元素容器相关操作
     }
 
     void push_back(const value_type& value) {
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T, Alloc>'s size too big");
         auto link_node = create_node(value);
         link_nodes_at_back(link_node->as_base(), link_node->as_base());
         ++size_;
@@ -552,9 +565,9 @@ private:  // 辅助函数
 /// @tparam T  元素的类型
 /// @param pos  删除的位置
 /// @return  返回指向被删除元素的下一个元素的迭代器
-template <class T>
-typename list<T>::iterator
-list<T>::erase(const_iterator pos) {
+template <class T, class Alloc>
+typename list<T, Alloc>::iterator
+list<T, Alloc>::erase(const_iterator pos) {
     TINYSTL_DEBUG(pos != cend());
     auto del_node = pos.node_;
     auto next_node = del_node->next;
@@ -569,9 +582,9 @@ list<T>::erase(const_iterator pos) {
 /// @param first  删除的起始位置
 /// @param last  删除的结束位置
 /// @return  返回指向被删除元素的下一个元素的迭代器
-template <class T>
-typename list<T>::iterator
-list<T>::erase(const_iterator first, const_iterator last) {
+template <class T, class Alloc>
+typename list<T, Alloc>::iterator
+list<T, Alloc>::erase(const_iterator first, const_iterator last) {
     if (first != last) {
         unlink_nodes(first.node_, last.node_->prev);
         while (first != last) {
@@ -586,8 +599,8 @@ list<T>::erase(const_iterator first, const_iterator last) {
 
 /// @brief 将 list 清空
 /// @tparam T 
-template<class T>
-void list<T>::clear() {
+template <class T, class Alloc>
+void list<T, Alloc>::clear() {
     if (size_ != 0) {
         auto cur = node_->next;
         for (base_ptr next = cur->next; cur != node_; cur = next, next = cur->next) {
@@ -602,8 +615,8 @@ void list<T>::clear() {
 /// @tparam T  元素的类型
 /// @param new_size  新的大小
 /// @param value  新插入元素的值
-template <class T>
-void list<T>::resize(size_type new_size, const value_type& value) {
+template <class T, class Alloc>
+void list<T, Alloc>::resize(size_type new_size, const value_type& value) {
     auto i = begin();
     size_type len = 0;
     while (i != end() && len < new_size) {
@@ -617,8 +630,9 @@ void list<T>::resize(size_type new_size, const value_type& value) {
 
 }
 
-template <class T>
-void list<T>::transfer(const_iterator pos, const_iterator first, const_iterator last) {
+// TODO: 注释
+template <class T, class Alloc>
+void list<T, Alloc>::transfer(const_iterator pos, const_iterator first, const_iterator last) {
     if (pos != last) {
         last.node_->prev->next = pos.node_;        // (1) 将 last 之前的节点与 pos 连接
         first.node_->prev->next = last.node_;      // (2) 将 first 之前的节点与 last 连接
@@ -634,11 +648,11 @@ void list<T>::transfer(const_iterator pos, const_iterator first, const_iterator 
 /// @tparam T  元素的类型
 /// @param pos  合并的位置
 /// @param x  要合并的 list
-template <class T>
-void list<T>::splice(const_iterator pos, list& x) {
+template <class T, class Alloc>
+void list<T, Alloc>::splice(const_iterator pos, list& x) {
     TINYSTL_DEBUG(this != &x);
     if (!x.empty()) {
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - x.size_, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - x.size_, "list<T, Alloc>'s size too big");
         
         // auto first = x.node_->next;
         // auto  last = x.node_->prev;
@@ -660,10 +674,10 @@ void list<T>::splice(const_iterator pos, list& x) {
 /// @param pos  合并的位置
 /// @param x  要合并的 list
 /// @param it  要合并的位置
-template <class T>
-void list<T>::splice(const_iterator pos, list& x, const_iterator it) {
+template <class T, class Alloc>
+void list<T, Alloc>::splice(const_iterator pos, list& x, const_iterator it) {
     if (pos.node_ != it.node_ && pos.node_ != it.node_->next) {
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T, Alloc>'s size too big");
         // auto first = it.node_;
         // x.unlink_nodes(first, first);
         // link_nodes(pos.node_, first, first);
@@ -682,11 +696,11 @@ void list<T>::splice(const_iterator pos, list& x, const_iterator it) {
 /// @param x  要合并的 list
 /// @param first  要合并的起始位置
 /// @param last   要合并的结束位置
-template <class T>
-void list<T>::splice(const_iterator pos, list& x, const_iterator first, const_iterator last) {
+template <class T, class Alloc>
+void list<T, Alloc>::splice(const_iterator pos, list& x, const_iterator first, const_iterator last) {
     if (first != last && this != &x) {
         size_type n = tinystl::distance(first, last);
-        THROW_LENGTH_ERROR_IF(size_ > max_size() - n, "list<T>'s size too big");
+        THROW_LENGTH_ERROR_IF(size_ > max_size() - n, "list<T, Alloc>'s size too big");
         // auto first_node = first.node_;
         // auto last_node = last.node_->prev;
         // x.unlink_nodes(first_node, last_node);
@@ -703,12 +717,16 @@ void list<T>::splice(const_iterator pos, list& x, const_iterator first, const_it
 /// @brief 将 list 中所有满足一元谓词 pred 的元素删除
 /// @tparam T  元素的类型
 /// @param pred  一元谓词
-template <class T>
+template <class T, class Alloc>
 template <class UnaryPredicate>
-void list<T>::remove_if(UnaryPredicate pred) {
-    auto first = begin();
-    auto last = end();
-    for (auto next = first; first != last; first = next) {
+void list<T, Alloc>::remove_if(UnaryPredicate pred) {
+    // auto first = begin();
+    // auto last = end();
+
+    iterator first = begin();
+    iterator last = end();
+
+    for (iterator next = first; first != last; first = next) {
         ++next;
         if (pred(*first)) erase(first);
     }
@@ -717,12 +735,16 @@ void list<T>::remove_if(UnaryPredicate pred) {
 /// @brief 将 list 中所有满足二元谓词 pred 的重复元素删除
 /// @tparam T 元素的类型
 /// @param pred  二元谓词
-template <class T>
+template <class T, class Alloc>
 template <class BinaryPredicate>
-void list<T>::unique(BinaryPredicate pred) {
-    auto i = begin();
-    auto e = end();
-    auto j = i;
+void list<T, Alloc>::unique(BinaryPredicate pred) {
+    // auto i = begin();
+    // auto e = end();
+    // auto j = i;
+
+    iterator i = begin();
+    iterator e = end();
+    iterator j = i;
     ++j;
 
     while (j != e) {
@@ -737,11 +759,11 @@ void list<T>::unique(BinaryPredicate pred) {
 /// @tparam T 
 /// @param x 
 /// @param comp 
-template <class T>
+template <class T, class Alloc>
 template <class Compare>
-void list<T>::merge(list& x, Compare comp) {
+void list<T, Alloc>::merge(list& x, Compare comp) {
     if (this == &x) return;
-    THROW_LENGTH_ERROR_IF(size_ > max_size() - x.size_, "list<T>'s size too big");
+    THROW_LENGTH_ERROR_IF(size_ > max_size() - x.size_, "list<T, Alloc>'s size too big");
 
     auto f1 = begin();
     auto l1 = end();
@@ -791,8 +813,8 @@ void list<T>::merge(list& x, Compare comp) {
     x.size_ = 0;
 }
 
-template <class T>
-void list<T>::reverse() noexcept {
+template <class T, class Alloc>
+void list<T, Alloc>::reverse() noexcept {
     // if (size_ <= 1) return;
     // auto i = begin();
     // auto e = end();
@@ -819,13 +841,14 @@ void list<T>::reverse() noexcept {
 /// @tparam T  节点的类型
 /// @param ...args  节点的构造参数
 /// @return  返回指向新节点的指针
-template <class T>
+template <class T, class Alloc>
 template <class ...Args>
-typename list<T>::node_ptr
-list<T>::create_node(Args&&... args) {
+typename list<T, Alloc>::node_ptr
+list<T, Alloc>::create_node(Args&&... args) {
     node_ptr p = node_allocator::allocate(1);
     try {
-        data_allocator::construct(tinystl::address_of(p->data), std::forward<Args>(args)...);
+        // data_allocator::construct(tinystl::address_of(p->data), std::forward<Args>(args)...);
+        tinystl::construct(tinystl::address_of(p->data), std::forward<Args>(args)...);
         p->prev = nullptr;
         p->next = nullptr;
     }
@@ -839,9 +862,10 @@ list<T>::create_node(Args&&... args) {
 /// @brief 销毁一个 list 节点
 /// @tparam T  节点的类型
 /// @param p  指向要销毁的节点的指针
-template <class T>
-void list<T>::destroy_node(node_ptr p) {
-    data_allocator::destroy(tinystl::address_of(p->data));
+template <class T, class Alloc>
+void list<T, Alloc>::destroy_node(node_ptr p) {
+    // data_allocator::destroy(tinystl::address_of(p->data));
+    tinystl::destroy(tinystl::address_of(p->data));
     node_allocator::deallocate(p);
 }
 
@@ -849,8 +873,8 @@ void list<T>::destroy_node(node_ptr p) {
 /// @tparam T  节点的类型
 /// @param n  初始化的元素个数
 /// @param value  初始化的元素值
-template <class T>
-void list<T>::fill_init(size_type n, const value_type& value) {
+template <class T, class Alloc>
+void list<T, Alloc>::fill_init(size_type n, const value_type& value) {
     node_ = base_allocator::allocate(1);
     node_->unlink();
     size_ = n;
@@ -872,9 +896,9 @@ void list<T>::fill_init(size_type n, const value_type& value) {
 /// @tparam T  节点的类型
 /// @param first  初始化的起始位置
 /// @param last  初始化的结束位置
-template <class T>
+template <class T, class Alloc>
 template <class Iter>
-void list<T>::copy_init(Iter first, Iter last) {
+void list<T, Alloc>::copy_init(Iter first, Iter last) {
     node_ = base_allocator::allocate(1);
     node_->unlink();
     size_type n = tinystl::distance(first, last);
@@ -898,9 +922,9 @@ void list<T>::copy_init(Iter first, Iter last) {
 /// @param pos  插入的位置
 /// @param node  要插入的节点
 /// @return  返回指向新插入元素的迭代器
-template <class T>
-typename list<T>::iterator
-list<T>::link_iter_node(const_iterator pos, base_ptr node) {
+template <class T, class Alloc>
+typename list<T, Alloc>::iterator
+list<T, Alloc>::link_iter_node(const_iterator pos, base_ptr node) {
     if (pos == node_->next) link_nodes_at_front(node, node);
     else if (pos == node_) link_nodes_at_back(node, node);
     else link_nodes(pos.node_, node, node);
@@ -912,8 +936,8 @@ list<T>::link_iter_node(const_iterator pos, base_ptr node) {
 /// @param pos  连接的位置
 /// @param first  连接的起始位置
 /// @param last  连接的结束位置
-template <class T>
-void list<T>::link_nodes(base_ptr pos, base_ptr first, base_ptr last) {
+template <class T, class Alloc>
+void list<T, Alloc>::link_nodes(base_ptr pos, base_ptr first, base_ptr last) {
     pos->prev->next = first;
     first->prev = pos->prev;
     pos->prev = last;
@@ -924,8 +948,8 @@ void list<T>::link_nodes(base_ptr pos, base_ptr first, base_ptr last) {
 /// @tparam T 
 /// @param first 
 /// @param last 
-template <class T>
-void list<T>::link_nodes_at_front(base_ptr first, base_ptr last) {
+template <class T, class Alloc>
+void list<T, Alloc>::link_nodes_at_front(base_ptr first, base_ptr last) {
     // 将新的链表加入
     first->prev = node_;
     last->next = node_->next;
@@ -938,8 +962,8 @@ void list<T>::link_nodes_at_front(base_ptr first, base_ptr last) {
 /// @tparam T 
 /// @param first 
 /// @param last 
-template <class T>
-void list<T>::link_nodes_at_back(base_ptr first, base_ptr last) {
+template <class T, class Alloc>
+void list<T, Alloc>::link_nodes_at_back(base_ptr first, base_ptr last) {
     // 将新的链表加入
     first->prev = node_->prev;
     last->next = node_;
@@ -952,8 +976,8 @@ void list<T>::link_nodes_at_back(base_ptr first, base_ptr last) {
 /// @tparam T 
 /// @param first 
 /// @param last 
-template <class T>
-void list<T>::unlink_nodes(base_ptr first, base_ptr last) {
+template <class T, class Alloc>
+void list<T, Alloc>::unlink_nodes(base_ptr first, base_ptr last) {
     first->prev->next = last->next;
     last->next->prev = first->prev;
 }
@@ -962,8 +986,8 @@ void list<T>::unlink_nodes(base_ptr first, base_ptr last) {
 /// @tparam T 
 /// @param n 
 /// @param value 
-template <class T>
-void list<T>::fill_assign(size_type n, const value_type& value) {
+template <class T, class Alloc>
+void list<T, Alloc>::fill_assign(size_type n, const value_type& value) {
     auto i = begin();
     auto e = end();
     for (; i != e && n > 0; ++i, --n) *i = value;
@@ -975,9 +999,9 @@ void list<T>::fill_assign(size_type n, const value_type& value) {
 /// @tparam T 
 /// @param first 
 /// @param last 
-template <class T>
+template <class T, class Alloc>
 template <class Iter>
-void list<T>::copy_assign(Iter first, Iter last) {
+void list<T, Alloc>::copy_assign(Iter first, Iter last) {
     auto i = begin();
     auto e = end();
     for (; i != e && first != last; ++i, ++first) *i = *first;
@@ -991,9 +1015,9 @@ void list<T>::copy_assign(Iter first, Iter last) {
 /// @param n 
 /// @param value 
 /// @return  返回指向新插入的最后一个元素的迭代器，若 n == 0，返回 pos
-template <class T>
-typename list<T>::iterator
-list<T>::fill_insert(const_iterator pos, size_type n, const value_type& value) {
+template <class T, class Alloc>
+typename list<T, Alloc>::iterator
+list<T, Alloc>::fill_insert(const_iterator pos, size_type n, const value_type& value) {
     iterator r(pos.node_);
     if (n != 0) {
         const auto add_size = n;
@@ -1032,10 +1056,10 @@ list<T>::fill_insert(const_iterator pos, size_type n, const value_type& value) {
 /// @param n 
 /// @param first 
 /// @return 
-template <class T>
+template <class T, class Alloc>
 template <class Iter>
-typename list<T>::iterator
-list<T>::copy_insert(const_iterator pos, size_type n, Iter first) {
+typename list<T, Alloc>::iterator
+list<T, Alloc>::copy_insert(const_iterator pos, size_type n, Iter first) {
     iterator r(pos.node_);
     if (n != 0)
     {
@@ -1068,14 +1092,14 @@ list<T>::copy_insert(const_iterator pos, size_type n, Iter first) {
     return r;
 }
 
-template <class T>
+template <class T, class Alloc>
 template <class Compare>
-void list<T>::list_sort(Compare comp) {
+void list<T, Alloc>::list_sort(Compare comp) {
     if (node_->next == node_ || node_->next->next == node_) return;
 
     // 一些新的 lists 用于存储分割后的 lists
-    list<T> carry;
-    list<T> counter[64];  // 缓存表，第 i 层 list 存储长度为 2^i
+    list<T, Alloc> carry;
+    list<T, Alloc> counter[64];  // 缓存表，第 i 层 list 存储长度为 2^i
     int fill = 0;         // 记录最深层数，counter[fill] 为空
 
     while (!empty()) {
@@ -1117,8 +1141,8 @@ void list<T>::list_sort(Compare comp) {
 
 // ==================================== 重载比较操作符 ==================================== //
 
-template <class T>
-bool operator==(const list<T>& lhs, const list<T>& rhs) {
+template <class T, class Alloc>
+bool operator==(const list<T, Alloc>& lhs, const list<T, Alloc>& rhs) {
     auto f1 = lhs.begin();
     auto f2 = rhs.begin();
     auto l1 = lhs.end();
@@ -1127,36 +1151,36 @@ bool operator==(const list<T>& lhs, const list<T>& rhs) {
     return f1 == l1 && f2 == l2;
 }
 
-template <class T>
-bool operator<(const list<T>& lhs, const list<T>& rhs) {
+template <class T, class Alloc>
+bool operator<(const list<T, Alloc>& lhs, const list<T, Alloc>& rhs) {
     return tinystl::lexicographical_compare(
         lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
-template <class T>
-bool operator!=(const list<T>& lhs, const list<T>& rhs) {
+template <class T, class Alloc>
+bool operator!=(const list<T, Alloc>& lhs, const list<T, Alloc>& rhs) {
     return !(lhs == rhs);
 }
 
-template <class T>
-bool operator>(const list<T>& lhs, const list<T>& rhs) {
+template <class T, class Alloc>
+bool operator>(const list<T, Alloc>& lhs, const list<T, Alloc>& rhs) {
     return rhs < lhs;
 }
 
-template <class T>
-bool operator<=(const list<T>& lhs, const list<T>& rhs) {
+template <class T, class Alloc>
+bool operator<=(const list<T, Alloc>& lhs, const list<T, Alloc>& rhs) {
     return !(rhs < lhs);
 }
 
-template <class T>
-bool operator>=(const list<T>& lhs, const list<T>& rhs) {
+template <class T, class Alloc>
+bool operator>=(const list<T, Alloc>& lhs, const list<T, Alloc>& rhs) {
     return !(lhs < rhs);
 }
 
 // ==================================== 重载 swap ==================================== //
 
-template <class T>
-void swap(list<T>& lhs, list<T>& rhs) noexcept {
+template <class T, class Alloc>
+void swap(list<T, Alloc>& lhs, list<T, Alloc>& rhs) noexcept {
     lhs.swap(rhs);
 }
 

@@ -4,7 +4,6 @@
 // list test : 测试 list 的接口与 insert, sort 的性能
 
 #include <list>
-
 #include "../TinySTL/list.h"
 #include "test.h"
 
@@ -110,7 +109,10 @@ void list_test() {
 }
 
 } // namespace list_test
+
 } // namespace test
+
 } // namespace tinystl
+
 #endif // !MYTINYSTL_LIST_TEST_H_
 
