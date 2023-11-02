@@ -109,6 +109,14 @@ struct list_iterator : public tinystl::iterator<tinystl::bidirectional_iterator_
     reference operator*() const { return node_->as_node()->data; }
     pointer  operator->() const { return &(operator*()); }
 
+    // 拷贝赋值运算符
+    list_iterator& operator=(const list_iterator& other) {
+        if (this != &other) {
+            node_ = other.node_;
+        }
+        return *this;
+    }
+
     self& operator++() {
         TINYSTL_DEBUG(node_ != nullptr);
         node_ = node_->next;
