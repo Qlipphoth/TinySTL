@@ -59,7 +59,13 @@
         "regex": "cpp",
         "variant": "cpp",
         "bitset": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "chrono": "cpp",
+        "condition_variable": "cpp",
+        "ratio": "cpp",
+        "future": "cpp",
+        "mutex": "cpp",
+        "thread": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

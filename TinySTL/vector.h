@@ -419,14 +419,14 @@ typename vector<T, Alloc>::iterator vector<T, Alloc>::emplace(
 
     // 构造位置为 end_，直接构造元素
     if (end_ != cap_ && xpos == end_) {
-        // data_allocator::construct(tinystl::address_of(*end_), tinystl::forward<Args>(args)...);
+        // tinystl::construct(tinystl::address_of(*end_), tinystl::forward<Args>(args)...);
         tinystl::construct(tinystl::address_of(*end_), tinystl::forward<Args>(args)...);
         ++end_;
     }
     // 构造位置不为 end_，则需要移动元素
     else if (end_ != cap_) {
         auto new_end = end_;
-        // data_allocator::construct(tinystl::address_of(*end_), *(end_ - 1));
+        // tinystl::construct(tinystl::address_of(*end_), *(end_ - 1));
         tinystl::construct(tinystl::address_of(*end_), *(end_ - 1));
         ++new_end;
         tinystl::copy_backward(xpos, end_ - 1, end_);
@@ -447,7 +447,7 @@ template <class T, class Alloc>
 template <class ...Args>
 void vector<T, Alloc>::emplace_back(Args&& ...args) {
     if (end_ < cap_) {
-        // data_allocator::construct(tinystl::address_of(*end_), tinystl::forward<Args>(args)...);
+        // tinystl::construct(tinystl::address_of(*end_), tinystl::forward<Args>(args)...);
         tinystl::construct(tinystl::address_of(*end_), tinystl::forward<Args>(args)...);
         ++end_;
     }
@@ -463,7 +463,7 @@ template <class T, class Alloc>
 void vector<T, Alloc>::push_back(const value_type& value) {
     // 如果空间足够就直接构造元素
     if (end_ != cap_) {
-        data_allocator::construct(tinystl::address_of(*end_), value);
+        tinystl::construct(tinystl::address_of(*end_), value);
         ++end_;
     }
     // 否则重新分配内存，并构造元素
@@ -495,14 +495,14 @@ typename vector<T, Alloc>::iterator vector<T, Alloc>::insert(const_iterator pos,
     const size_type n = xpos - begin_;
     // 构造位置为 end_，直接构造元素
     if (end_ != cap_ && xpos == end_) {
-        data_allocator::construct(tinystl::address_of(*end_), value);
+        tinystl::construct(tinystl::address_of(*end_), value);
         ++end_;
     }
     // 构造位置不为 end_，则需要移动元素
     else if (end_ != cap_) {
         auto new_end = end_;
         // 在 end_ 处构造元素
-        data_allocator::construct(tinystl::address_of(*end_), *(end_ - 1));
+        tinystl::construct(tinystl::address_of(*end_), *(end_ - 1));
         ++new_end;
         auto value_copy = value;  // 避免元素因以下复制操作而被改变
         // 将 [xpos, end_ - 1) 的元素向后移动一位
@@ -752,7 +752,7 @@ void vector<T, Alloc>::reallocate_emplace(iterator pos, Args&& ...args) {
     auto new_end = new_begin;
     try {
         new_end = tinystl::uninitialized_move(begin_, pos, new_begin);
-        // data_allocator::construct(tinystl::address_of(*new_end), tinystl::forward<Args>(args)...);
+        // tinystl::construct(tinystl::address_of(*new_end), tinystl::forward<Args>(args)...);
         tinystl::construct(tinystl::address_of(*new_end), tinystl::forward<Args>(args)...);
         ++new_end;
         new_end = tinystl::uninitialized_move(pos, end_, new_end);
@@ -781,7 +781,7 @@ void vector<T, Alloc>::reallocate_insert(iterator pos, const value_type& value) 
         // 将 pos 之前的元素移动到新的位置
         new_end = tinystl::uninitialized_move(begin_, pos, new_begin);
         // 在 pos 处构造元素
-        data_allocator::construct(tinystl::address_of(*new_end), value_copy);
+        tinystl::construct(tinystl::address_of(*new_end), value_copy);
         ++new_end;
         // 将 pos 之后的元素移动到新的位置
         new_end = tinystl::uninitialized_move(pos, end_, new_end);

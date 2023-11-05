@@ -1085,20 +1085,6 @@ TEST(upper_bound_test) {
                 tinystl::upper_bound(arr1, arr1 + 9, 7, std::less<int>()));
 }
 
-TEST(equal_range_pk) {
-    std::cout << "|    std    |" << std::endl;
-    TEST_EQUAL_RANGE(std, 100000, 100000);
-    std::cout << "|  tinystl  |" << std::endl;
-    TEST_EQUAL_RANGE(tinystl, 100000, 100000);
-}
-
-TEST(rotate_pk) {
-    std::cout << "|    std    |" << std::endl;
-    TEST_ROTATE(std, 10000, 10000);
-    std::cout << "|  tinystl  |" << std::endl;
-    TEST_ROTATE(tinystl, 10000, 10000);
-}
-
 }  // namespace algorithm_test
 
 #ifdef _MSC_VER
