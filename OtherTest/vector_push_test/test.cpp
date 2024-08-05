@@ -83,9 +83,18 @@ void tinystlTest() {
     // testDemo demo3(testDemo(3));
 }
 
+void stdConstructTest() {
+    std::cout << "-------------Vector<T>():-------------" << std::endl;
+    std::vector<testDemo> demo1;
+    std::cout << "-------------Vector<T>(n):-------------" << std::endl;
+    std::vector<testDemo> demo2(2);
+    std::cout << "-------------Vector<T>(n, value):-------------" << std::endl;
+    std::vector<testDemo> demo3(2, testDemo(2));
+}
 
 int main()
 {
-    stdTest();
+    // stdTest();
     // tinystlTest();
+    stdConstructTest();
 }

@@ -67,5 +67,7 @@
         "mutex": "cpp",
         "thread": "cpp"
     },
-    "C_Cpp.errorSquiggles": "enabled"
+    "C_Cpp.errorSquiggles": "enabled",
+    "cmake.configureOnOpen": true,
+    "C_Cpp.default.compilerPath": "/usr/bin/g++"
 }
