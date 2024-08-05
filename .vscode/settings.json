@@ -65,7 +65,14 @@
         "ratio": "cpp",
         "future": "cpp",
         "mutex": "cpp",
-        "thread": "cpp"
+        "thread": "cpp",
+        "xtr1common": "cpp",
+        "queue": "cpp",
+        "xhash": "cpp",
+        "xmemory": "cpp",
+        "xstring": "cpp",
+        "xtree": "cpp",
+        "xutility": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled",
     "cmake.configureOnOpen": true,
